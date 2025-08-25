@@ -70,12 +70,14 @@ class CustomerOrdersPopup(QtWidgets.QWidget):
         left_layout.addWidget(self.customer_list)
 
         self.add_customer_btn = QtWidgets.QPushButton("Add Customer")
+
+        self.delete_btn = QtWidgets.QPushButton("Delete Customer")
+        left_layout.addWidget(self.delete_btn)
+        self.delete_btn.clicked.connect(self.delete_selected_customer)
+
         left_layout.addWidget(self.add_customer_btn)
         self.add_customer_btn.clicked.connect(self.show_add_customer_dialog)
 
-        for text in ["Edit Customer", "Delete Customer"]:
-            btn = QtWidgets.QPushButton(text)
-            left_layout.addWidget(btn)
 
         # ---------------- Middle Panel ----------------
         middle_layout = QtWidgets.QVBoxLayout()
@@ -200,6 +202,35 @@ class CustomerOrdersPopup(QtWidgets.QWidget):
             self.order_table.setItem(row, 2, QtWidgets.QTableWidgetItem("Pending"))
 
         self.lineitem_table.setRowCount(0)
+
+    def delete_selected_customer(self):
+        if not hasattr(self, "selected_id"):
+            QtWidgets.QMessageBox.warning(self, "Delete Error", "No customer selected.")
+            return
+
+        reply = QtWidgets.QMessageBox.question(
+            self,
+            "Confirm Delete",
+            "Are you sure you want to delete this customer?",
+            QtWidgets.QMessageBox.Yes | QtWidgets.QMessageBox.No
+        )
+
+        if reply == QtWidgets.QMessageBox.Yes:
+            CustomerDB.delete_customer(self.selected_id)
+
+            # Clear selection and profile/orders
+            self.selected_id = None
+            self.name_input.clear()
+            self.phone_input.clear()
+            self.email_input.clear()
+            self.subscribed_checkbox.setChecked(False)
+            self.address_input.clear()
+            self.notes_input.clear()
+            self.order_table.setRowCount(0)
+            self.lineitem_table.setRowCount(0)
+
+            # Refresh customer list
+            self.refresh_customers()
 
 
 # ---------------- Run demo ----------------
