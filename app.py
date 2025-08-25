@@ -10,7 +10,7 @@ from ingredient_history_ui import IngredientHistoryPopup
 from ingredient_stock_ui import IngredientStockPopup
 from recipes_ui import RecipesPopup
 from metadata_ui import MetadataPopup
-from customer_ui import CustomersPopup
+from customer_ui import CustomerOrdersPopup
 from order_ui import OrdersPopup
 
 
@@ -73,7 +73,7 @@ class MainApp(QtWidgets.QWidget):
         self.metadata_window.show()
 
     def open_customers(self):
-        self.customers_window = CustomersPopup()
+        self.customers_window = CustomerOrdersPopup()
         self.customers_window.show()
 
     def open_orders(self):
