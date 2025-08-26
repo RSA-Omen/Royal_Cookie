@@ -1,10 +1,7 @@
 import sys
 from PyQt5 import QtWidgets
 
-#we link init all to initialize the database
 from init_all import init_db
-
-#load in each UI interface here
 from ingredient_ui import IngredientsPopup
 from purchases_ui import IngredientHistoryPopup
 from Stock_ui import IngredientStockPopup
@@ -13,43 +10,37 @@ from metadata_ui import MetadataPopup
 from customer_ui import CustomerOrdersPopup
 from order_ui import OrdersPopup
 
-
-
-
-class MainApp(QtWidgets.QWidget):
+class MainApp(QtWidgets.QMainWindow):
     def __init__(self):
         super().__init__()
         self.setWindowTitle("Royal Cookie - Dashboard")
-        self.resize(400, 300)
+        self.resize(600, 400)
 
-        # --- Buttons on landing page ---
+        # Central widget
+        central = QtWidgets.QWidget()
+        self.setCentralWidget(central)
         layout = QtWidgets.QVBoxLayout()
-        self.ingredients_btn = QtWidgets.QPushButton("Manage Ingredients")
-        self.history_btn = QtWidgets.QPushButton("Ingredient History")
-        self.stock_btn = QtWidgets.QPushButton("Manage Stock")
-        self.recipes_btn = QtWidgets.QPushButton("Manage Recipes")
-        self.metadata_btn = QtWidgets.QPushButton("Manage Metadata")
-        self.customers_btn = QtWidgets.QPushButton("Manage Customers")
-        self.orders_button = QtWidgets.QPushButton("Manage Orders")
+        central.setLayout(layout)
+        layout.addWidget(QtWidgets.QLabel("Select an option from the menu above"))
 
-        layout.addWidget(self.ingredients_btn)
-        layout.addWidget(self.history_btn)
-        layout.addWidget(self.stock_btn)
-        layout.addWidget(self.recipes_btn)
-        layout.addWidget(self.metadata_btn)
-        layout.addWidget(self.customers_btn)
-        layout.addWidget(self.orders_button)
-        self.setLayout(layout)
+        # --- Menu Bar ---
+        menubar = self.menuBar()
 
+        # Ingredients menu
+        ingredients_menu = menubar.addMenu("Ingredients")
+        ingredients_menu.addAction("Manage Ingredients", self.open_ingredients)
+        ingredients_menu.addAction("Ingredient Purchase", self.open_history)
+        ingredients_menu.addAction("Manage Stock", self.open_stock)
 
-        # --- Connect buttons to functions ---
-        self.ingredients_btn.clicked.connect(self.open_ingredients)
-        self.history_btn.clicked.connect(self.open_history)
-        self.stock_btn.clicked.connect(self.open_stock)
-        self.recipes_btn.clicked.connect(self.open_recipes)
-        self.metadata_btn.clicked.connect(self.open_metadata)
-        self.customers_btn.clicked.connect(self.open_customers)
-        self.orders_button.clicked.connect(self.open_orders)
+        # Recipes menu
+        recipes_menu = menubar.addMenu("Recipes")
+        recipes_menu.addAction("Manage Recipes", self.open_recipes)
+        recipes_menu.addAction("Manage Metadata", self.open_metadata)
+
+        # Customers / Orders menu
+        customers_menu = menubar.addMenu("Customers & Orders")
+        customers_menu.addAction("Manage Customers", self.open_customers)
+        customers_menu.addAction("Manage Orders", self.open_orders)
 
     # --- Open windows ---
     def open_ingredients(self):
@@ -77,8 +68,8 @@ class MainApp(QtWidgets.QWidget):
         self.customers_window.show()
 
     def open_orders(self):
-        self.order_window = OrdersPopup()
-        self.order_window.show()
+        self.orders_window = OrdersPopup()
+        self.orders_window.show()
 
 
 if __name__ == "__main__":
