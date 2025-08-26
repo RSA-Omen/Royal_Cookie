@@ -1,6 +1,5 @@
-# Royal_Cookie
 ======================
-DBs (Database interaction)
+DBs (Database interaction / CRUD)
 ======================
 
 CustomerDB
@@ -9,7 +8,7 @@ CustomerDB
 IngredientsDB
 - Manages ingredient definitions: names, units, possibly categories.
 
-Purchases(formerly Ingredients_historyDB)
+Ingredients_historyDB
 - Keeps a historical record of ingredient changes or usage.
 
 Ingredients_stockDB
@@ -41,7 +40,7 @@ IngredientUI
 Ingredient_stockUI
 - Interface for viewing and adjusting ingredient stock levels.
 
-Purchases(formerly Ingredient_historyUI)
+Ingredient_historyUI
 - Interface for viewing historical ingredient usage or adjustments.
 
 MetadataUI

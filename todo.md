@@ -3,15 +3,15 @@ TODO LIST - The Royal Cookie Project
 
 CORE NEXT STEPS (Short Term)
 ----------------------------
-- [ ] Fix & polish Line Item Update
+- [x] Fix & polish Line Item Update
       * Implement LineItemDB.update_order_item()
       * Validate no negative/zero qty
       * Add success/error popup messages
-- [ ] Tie Line Items to Orders
+- [x] Tie Line Items to Orders
       * Ensure selected_order_id is required when adding line items
       * Disable Add/Update/Delete Line Item buttons if no order is selected
       * Auto-create order_id when creating new order
-- [ ] Delete Confirmation
+- [x] Delete Confirmation
       * Add confirmation dialog before deleting line items
       * Show popup on delete success/fail
 - [ ] Convert all stock quantities to grams/ml
@@ -19,7 +19,7 @@ CORE NEXT STEPS (Short Term)
 
 INVENTORY & STOCK (Mid Term)
 ----------------------------
-- [ ] Build Ingredients/Stock Table
+- [x] Build Ingredients/Stock Table
       * New DB table: inventory (ingredient, qty, unit)
       * Add UI tab for viewing/editing inventory
 - [ ] Connect Recipes → Ingredients
@@ -71,3 +71,9 @@ Release 3: Website Version
 
 Release 4: Mobile Version
 - [ ] Create a mobile version of the app
+
+
+
+Supplier management
+transaction logs
+reporting dashboard

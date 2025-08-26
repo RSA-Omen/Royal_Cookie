@@ -3,9 +3,9 @@ import db as DB_handler
 import line_item_db
 #imports each class for the purpose of accessing the initializers.
 from ingredient_db import IngredientDB
-from ingredient_stock_db import IngredientStockDB
+from Stock_db import IngredientStockDB
 from recipe_db import RecipeDB
-from ingredient_history_db import IngredientHistoryDB
+from purchases_db import PurchaseDB
 from metadata_db import MetadataDB
 from customer_db import CustomerDB
 from order_db import OrderDB
@@ -20,7 +20,7 @@ def init_db():
     IngredientStockDB.init_ingredient_stock_db(connection)
     RecipeDB.init_recipe_db(connection)
     MetadataDB.init_metadata_db(connection)
-    IngredientHistoryDB.init_ingredient_history_db(connection)
+    PurchaseDB.init_ingredient_history_db(connection)
     CustomerDB.init_customer_db(connection)
     OrderDB.init_orders_table(connection)
     LineItemDB.init_line_items_table(connection)

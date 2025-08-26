@@ -1,6 +1,6 @@
 from db import get_connection
 
-class IngredientHistoryDB:
+class PurchaseDB:
     @staticmethod
     def init_ingredient_history_db(conn):
         cursor = conn.cursor()

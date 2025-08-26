@@ -4,8 +4,8 @@ from db import get_connection
 from metadata_db import MetadataDB
 from ingredient_db import IngredientDB
 from recipe_db import RecipeDB
-from ingredient_history_db import IngredientHistoryDB
-from ingredient_stock_db import IngredientStockDB
+from purchases_db import PurchaseDB
+from Stock_db import IngredientStockDB
 from datetime import datetime
 
 def drop_all_tables(conn):
@@ -24,7 +24,7 @@ def init_all_tables(conn):
     MetadataDB.init_metadata_db(conn)
     IngredientDB.init_ingredient_db(conn)
     RecipeDB.init_recipe_db(conn)
-    IngredientHistoryDB.init_ingredient_history_db(conn)
+    PurchaseDB.init_ingredient_history_db(conn)
     IngredientStockDB.init_ingredient_stock_db(conn)
 
 def seed_metadata():
@@ -114,7 +114,7 @@ def seed_stock_and_history():
         try:
             # Seed 3 history entries per ingredient
             for qty in [100, 200, 150]:
-                IngredientHistoryDB.add_history(ing["ID"], now, qty, price=10.0, discount=0.0)
+                PurchaseDB.add_history(ing["ID"], now, qty, price=10.0, discount=0.0)
 
             # Set current stock as sum of seeded quantities
             total_qty = sum([100, 200, 150])

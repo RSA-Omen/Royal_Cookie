@@ -6,8 +6,8 @@ from init_all import init_db
 
 #load in each UI interface here
 from ingredient_ui import IngredientsPopup
-from ingredient_history_ui import IngredientHistoryPopup
-from ingredient_stock_ui import IngredientStockPopup
+from purchases_ui import IngredientHistoryPopup
+from Stock_ui import IngredientStockPopup
 from recipes_ui import RecipesPopup
 from metadata_ui import MetadataPopup
 from customer_ui import CustomerOrdersPopup

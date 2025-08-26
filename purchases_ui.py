@@ -1,9 +1,9 @@
 from PyQt5 import QtWidgets
 from PyQt5.QtWidgets import QMessageBox, QTableWidgetItem
 from ingredient_db import IngredientDB
-from ingredient_history_db import IngredientHistoryDB
+from purchases_db import PurchaseDB
 from datetime import datetime
-from ingredient_stock_db import IngredientStockDB
+from Stock_db import IngredientStockDB
 
 class IngredientHistoryPopup(QtWidgets.QWidget):
     def __init__(self):
@@ -55,7 +55,7 @@ class IngredientHistoryPopup(QtWidgets.QWidget):
 
         # Load ingredients & initial table
         self.load_ingredients()
-        self.data = IngredientHistoryDB.get_history()
+        self.data = PurchaseDB.get_history()
         self.refresh_table()
 
     def load_ingredients(self):
@@ -103,7 +103,7 @@ class IngredientHistoryPopup(QtWidgets.QWidget):
             return
 
         purchase_date = datetime.now().isoformat()
-        IngredientHistoryDB.add_history(ingredient_id, purchase_date, quantity, price, discount)
+        PurchaseDB.add_history(ingredient_id, purchase_date, quantity, price, discount)
 
         # --- Add quantity to stock ---
         try:
@@ -140,7 +140,7 @@ class IngredientHistoryPopup(QtWidgets.QWidget):
             return
 
         # Update history entry
-        IngredientHistoryDB.update_history(history_id, new_quantity, new_price, new_discount)
+        PurchaseDB.update_history(history_id, new_quantity, new_price, new_discount)
 
         # Adjust stock by the difference
         delta = new_quantity - old_quantity
@@ -167,7 +167,7 @@ class IngredientHistoryPopup(QtWidgets.QWidget):
         old_quantity = float(history_row[3])
 
         # Delete history entry
-        IngredientHistoryDB.delete_history(history_id)
+        PurchaseDB.delete_history(history_id)
 
         # Subtract from stock
         current_stock_rows = IngredientStockDB.get_stock(ingredient_id)
@@ -203,7 +203,7 @@ class IngredientHistoryPopup(QtWidgets.QWidget):
     def on_ingredient_changed(self, index):
         ingredient_id = self.ingredient_input.itemData(index)
         if ingredient_id is not None and ingredient_id != -1:
-            self.data = IngredientHistoryDB.get_history(ingredient_id)
+            self.data = PurchaseDB.get_history(ingredient_id)
         else:
-            self.data = IngredientHistoryDB.get_history()
+            self.data = PurchaseDB.get_history()
         self.refresh_table()

@@ -179,11 +179,16 @@ class CustomerOrdersPopup(QtWidgets.QWidget):
         right_layout.addWidget(self.add_lineitem_btn)
         right_layout.addWidget(self.edit_lineitem_btn)
         right_layout.addWidget(self.delete_lineitem_btn)
+        self.add_lineitem_btn.setEnabled(False)
+        self.edit_lineitem_btn.setEnabled(False)
+        self.delete_lineitem_btn.setEnabled(False)
 
         # Bind actions
         self.add_lineitem_btn.clicked.connect(self.add_line_item)
         self.edit_lineitem_btn.clicked.connect(self.update_line_item)
         self.delete_lineitem_btn.clicked.connect(self.delete_line_item)
+
+
 
         # ========== ADD PANELS TO MAIN LAYOUT ==========
         main_layout.addLayout(left_layout, 1)
@@ -273,18 +278,32 @@ class CustomerOrdersPopup(QtWidgets.QWidget):
             self.order_table.setItem(row, 0, QtWidgets.QTableWidgetItem(str(order[0])))
             self.order_table.setItem(row, 1, QtWidgets.QTableWidgetItem(order[1]))
             self.order_table.setItem(row, 2, QtWidgets.QTableWidgetItem(order[2]))
+
     def add_order(self):
         try:
             if not hasattr(self, "selected_customer_id"):
                 QtWidgets.QMessageBox.warning(self, "Error", "Select a customer first.")
                 return
-            order_id = OrderDB.add_order(self.selected_customer_id, notes="New Order")
-            if order_id:
-                self.load_orders()
-            else:
+
+            # Auto-create a new order
+            new_order_id = OrderDB.add_order(self.selected_customer_id, notes="New Order")
+            if not new_order_id:
                 QtWidgets.QMessageBox.critical(self, "Error", "Failed to add order.")
+                return
+
+            # Set as selected order
+            self.selected_order_id = new_order_id
+            self.load_orders()
+
+            # Find the row of the new order and select it
+            for row in range(self.order_table.rowCount()):
+                if int(self.order_table.item(row, 0).text()) == new_order_id:
+                    self.order_table.selectRow(row)
+                    break
+
         except Exception as e:
             print(f"[ERROR] Add order failed: {e}")
+
     def delete_order(self):
         try:
             row = self.order_table.currentRow()
@@ -363,33 +382,28 @@ class CustomerOrdersPopup(QtWidgets.QWidget):
         except Exception as e:
             print(f"[ERROR] UI remove_line_item failed: {e}")
     def add_line_item(self):
-        """Add a new line item to the selected order."""
         try:
-            if not hasattr(self, "selected_order_id"):
+            if not hasattr(self, "selected_order_id") or self.selected_order_id is None:
                 QtWidgets.QMessageBox.warning(self, "Error", "Select an order first.")
                 return
 
-            # Show dialog for recipe + quantity
-            recipes = OrderDB.get_all_recipes()  # method returns list of tuples (id, name)
+            # Pick recipe
+            recipes = LineItemDB.get_all_recipes()
             recipe_names = [r[1] for r in recipes]
-            recipe_choice, ok = QtWidgets.QInputDialog.getItem(
-                self, "Select Recipe", "Recipe:", recipe_names, 0, False
-            )
-            if not ok:
-                return
-            quantity, ok = QtWidgets.QInputDialog.getInt(
-                self, "Quantity", "Enter quantity:", 1, 1
-            )
-            if not ok:
-                return
+            recipe_choice, ok = QtWidgets.QInputDialog.getItem(self, "Select Recipe", "Recipe:", recipe_names, 0, False)
+            if not ok: return
 
-            # Find selected recipe ID
+            # Pick quantity
+            quantity, ok = QtWidgets.QInputDialog.getInt(self, "Quantity", "Enter quantity:", 1, 1)
+            if not ok: return
+
             recipe_id = next(r[0] for r in recipes if r[1] == recipe_choice)
 
             # Insert into DB
             LineItemDB.add_order_item(self.selected_order_id, recipe_id, quantity)
-            self.load_orders()
             self.load_line_items()
+            QtWidgets.QMessageBox.information(self, "Success", f"Added {quantity} x {recipe_choice}")
+
         except Exception as e:
             print(f"[ERROR] Adding line item failed: {e}")
     def load_line_items(self):
@@ -423,7 +437,7 @@ class CustomerOrdersPopup(QtWidgets.QWidget):
         except Exception as e:
             print(f"[ERROR] Loading line items failed: {e}")
     def update_line_item(self):
-        """Update quantity (or optionally recipe) of the selected line item."""
+        """Update quantity of the selected line item."""
         try:
             row = self.lineitem_table.currentRow()
             if row < 0:
@@ -433,12 +447,30 @@ class CustomerOrdersPopup(QtWidgets.QWidget):
             lineitem_id = int(self.lineitem_table.item(row, 0).text())
             current_qty = int(self.lineitem_table.item(row, 2).text())
 
-            new_qty, ok = QtWidgets.QInputDialog.getInt(self, "Update Quantity", "Enter new quantity:", current_qty, 1)
-            if not ok: return
-            LineItemDB.update_order_item(lineitem_id, new_qty)
+            new_qty, ok = QtWidgets.QInputDialog.getInt(
+                self, "Update Quantity", "Enter new quantity:", current_qty, 1
+            )
+            if not ok:
+                return
+
+            try:
+                success = LineItemDB.update_order_item(lineitem_id, new_qty)
+                if success:
+                    QtWidgets.QMessageBox.information(
+                        self, "Success", f"Line item updated to {new_qty}."
+                    )
+                else:
+                    QtWidgets.QMessageBox.critical(
+                        self, "Error", "Failed to update line item."
+                    )
+            except ValueError as ve:
+                QtWidgets.QMessageBox.warning(self, "Invalid Quantity", str(ve))
+
             self.load_line_items()
+
         except Exception as e:
             print(f"[ERROR] Updating line item failed: {e}")
+            QtWidgets.QMessageBox.critical(self, "Error", f"Unexpected error:\n{e}")
     def delete_line_item(self):
         """Delete the currently selected line item."""
         try:
@@ -457,15 +489,26 @@ class CustomerOrdersPopup(QtWidgets.QWidget):
                 self.load_line_items()
         except Exception as e:
             print(f"[ERROR] Deleting line item failed: {e}")
-
-
     def on_order_selected(self, row, column, prev_row, prev_column):
+        """Triggered when the user selects an order in the table."""
         if row < 0:
+            self.selected_order_id = None
+            self.add_lineitem_btn.setEnabled(False)
+            self.edit_lineitem_btn.setEnabled(False)
+            self.delete_lineitem_btn.setEnabled(False)
+            self.lineitem_table.setRowCount(0)
             return
+
         self.selected_order_id = int(self.order_table.item(row, 0).text())
+        self.add_lineitem_btn.setEnabled(True)
+        self.edit_lineitem_btn.setEnabled(True)
+        self.delete_lineitem_btn.setEnabled(True)
         self.load_line_items()
 
     # ---------------- Right Panel -row 2 -------------------------------------------------------------------------
+
+
+
 
 
 

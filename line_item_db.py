@@ -67,6 +67,8 @@ class LineItemDB:
     @staticmethod
     def update_order_item(lineitem_id, new_qty):
         """Update the quantity of a line item by its ID."""
+        if new_qty <= 0:
+            raise ValueError("Quantity must be greater than zero.")
         try:
             conn = get_connection()
             cur = conn.cursor()
@@ -76,8 +78,10 @@ class LineItemDB:
             )
             conn.commit()
             conn.close()
+            return True
         except Exception as e:
             print(f"[ERROR] Failed to update line item: {e}")
+            return False
 
     @staticmethod
     def delete_order_item(lineitem_id):
