@@ -5,107 +5,84 @@ from order_db import OrderDB
 from line_item_db import LineItemDB
 from metadata_db import MetadataDB
 from Stock_db import IngredientStockDB
-from recipe_db import RecipeDB  # add this import at the top
+from recipe_db import RecipeDB
 
-ALLOWED_ORDER_STATUSES = [
-    "Invoice Sent",
-    "Invoice Received",
-    "BOM Completed",
-    "Order in Progress",
-    "Order Completed",
-    "Shipped",
-    "Closed"
-]
 
 class StockCheckPanel(QtWidgets.QWidget):
-    def __init__(self):
-        super().__init__()
+    
+    def __init__(self, parent=None):
+        super().__init__(parent)
         layout = QtWidgets.QVBoxLayout(self)
 
-        # Summary view (aggregated ingredient requirements)
+        # Summary Table
         self.summary_table = QtWidgets.QTableWidget()
         self.summary_table.setColumnCount(4)
         self.summary_table.setHorizontalHeaderLabels(["Ingredient", "Required", "Available", "Status"])
-        self.summary_table.horizontalHeader().setStretchLastSection(True)
+        self.summary_table.horizontalHeader().setSectionResizeMode(QtWidgets.QHeaderView.Stretch)
+        layout.addWidget(QtWidgets.QLabel("Summary Table"))
+        layout.addWidget(self.summary_table)
 
-        # Breakdown view (Recipe -> Ingredients)
+        # Breakdown Tree
         self.breakdown_tree = QtWidgets.QTreeWidget()
-        self.breakdown_tree.setHeaderLabels(["Recipe / Ingredient", "Required", "Available", "Status"])
-        self.breakdown_tree.header().setStretchLastSection(True)
-
-        layout.addWidget(QtWidgets.QLabel("Summary of Ingredients"))
-        layout.addWidget(self.summary_table, 1)
-        layout.addWidget(QtWidgets.QLabel("Breakdown by Recipe"))
-        layout.addWidget(self.breakdown_tree, 2)
+        self.breakdown_tree.setHeaderLabels(["Recipe/Ingredient", "Required", "Available", "Status"])
+        layout.addWidget(QtWidgets.QLabel("Breakdown Tree"))
+        layout.addWidget(self.breakdown_tree)    
 
     def load_stock(self, order_id):
-        """
-        Load all ingredients for all line items of a specific order.
-        Populates the summary table and breakdown tree.
-        """
-        try:
-            stock_db = IngredientStockDB()
-
-            # 1. Get all line items for this order
-            items = LineItemDB.get_order_items(order_id) or []
-            if not items:
-                print(f"[DEBUG] No line items found for order {order_id}")
-                self.summary_table.setRowCount(0)
-                self.breakdown_tree.clear()
-                return
-
-            ingredient_totals = {}  # {metadata_id: {"name":..., "required":..., "available":...}}
+        items = LineItemDB.get_order_items(order_id) or []
+        if not items:
+            print(f"[DEBUG] No line items found for order {order_id}")
+            self.summary_table.setRowCount(0)
             self.breakdown_tree.clear()
+            return
 
-            for item in items:
-                lineitem_id, order_id, recipe_name, qty = item
-                recipe_name = str(recipe_name or "Unnamed Recipe")
-                qty = qty or 0
+        stock_db = IngredientStockDB()
+        ingredient_totals = {}
+        self.breakdown_tree.clear()
 
-                recipe_node = QtWidgets.QTreeWidgetItem([recipe_name])
-                self.breakdown_tree.addTopLevelItem(recipe_node)
+        for item in items:
+            lineitem_id, order_id, recipe_name, qty = item
+            recipe_name = str(recipe_name or "Unnamed Recipe")
+            qty = qty or 0
 
-                # Get recipe_id from line item
-                recipe_id = LineItemDB.get_recipe_id(lineitem_id)
-                if not recipe_id:
-                    continue
+            recipe_node = QtWidgets.QTreeWidgetItem([recipe_name])
+            self.breakdown_tree.addTopLevelItem(recipe_node)
 
-                # Get ingredients from RecipeDB
-                ingredients = RecipeDB.get_recipe_ingredients(recipe_id) or []
-                for ri_id, r_id, metadata_id, per_recipe_amt, unit, ing_name in ingredients:
-                    ing_name = str(ing_name or "Unnamed Ingredient")
-                    per_recipe_amt = per_recipe_amt or 0
-                    required = per_recipe_amt * qty
-                    available = stock_db.get_available_stock(metadata_id) or 0
+            recipe_id = LineItemDB.get_recipe_id(lineitem_id)
+            if not recipe_id:
+                continue
 
-                    if metadata_id not in ingredient_totals:
-                        ingredient_totals[metadata_id] = {"name": ing_name, "required": 0, "available": available}
-                    ingredient_totals[metadata_id]["required"] += required
+            ingredients = RecipeDB.get_recipe_ingredients(recipe_id) or []
+            for ri_id, r_id, metadata_id, per_recipe_amt, unit, ing_name in ingredients:
+                ing_name = str(ing_name or "Unnamed Ingredient")
+                per_recipe_amt = per_recipe_amt or 0
+                required = per_recipe_amt * qty
+                available = stock_db.get_available_stock(metadata_id) or 0
 
-                    status = self._status(required, available)
-                    ing_item = QtWidgets.QTreeWidgetItem([ing_name, str(required), str(available), status])
-                    self._color_row_safe(ing_item, status)
-                    recipe_node.addChild(ing_item)
+                # For summary table
+                if metadata_id not in ingredient_totals:
+                    ingredient_totals[metadata_id] = {"name": ing_name, "required": 0, "available": available}
+                ingredient_totals[metadata_id]["required"] += required
 
-            # Populate summary table
-            self.summary_table.setRowCount(len(ingredient_totals))
-            for row, ing in enumerate(ingredient_totals.values()):
-                name = str(ing.get("name", ""))
-                required = ing.get("required", 0)
-                available = ing.get("available", 0)
                 status = self._status(required, available)
+                ing_item = QtWidgets.QTreeWidgetItem([ing_name, str(required), str(available), status])
+                self._color_row(ing_item, status)
+                recipe_node.addChild(ing_item)
+          
+            # --- Populate the summary table ---
+        self.summary_table.setRowCount(len(ingredient_totals))
+        for row, ing in enumerate(ingredient_totals.values()):
+            name = str(ing.get("name", ""))
+            required = ing.get("required", 0)
+            available = ing.get("available", 0)
+            status = self._status(required, available)
 
-                self.summary_table.setItem(row, 0, QtWidgets.QTableWidgetItem(name))
-                self.summary_table.setItem(row, 1, QtWidgets.QTableWidgetItem(str(required)))
-                self.summary_table.setItem(row, 2, QtWidgets.QTableWidgetItem(str(available)))
-                self.summary_table.setItem(row, 3, QtWidgets.QTableWidgetItem(status))
+            self.summary_table.setItem(row, 0, QtWidgets.QTableWidgetItem(name))
+            self.summary_table.setItem(row, 1, QtWidgets.QTableWidgetItem(str(required)))
+            self.summary_table.setItem(row, 2, QtWidgets.QTableWidgetItem(str(available)))
+            self.summary_table.setItem(row, 3, QtWidgets.QTableWidgetItem(status))
 
-                self._color_row_table_safe(row, status)
-
-        except Exception as e:
-            print(f"[ERROR] load_stock failed for order {order_id}: {e}")
-            import traceback
-            print(traceback.format_exc())
+            self._color_row_table(row, status)
 
     def _status(self, required, available):
         if available >= required:
@@ -114,7 +91,6 @@ class StockCheckPanel(QtWidgets.QWidget):
             return "⚠️ Low"
         else:
             return "❌ Missing"
-
     def _color_row(self, item, status):
         if "Enough" in status:
             color = QtGui.QColor(144, 238, 144)  # light green
@@ -124,7 +100,6 @@ class StockCheckPanel(QtWidgets.QWidget):
             color = QtGui.QColor(255, 99, 71)    # red
         for col in range(item.columnCount()):
             item.setBackground(col, color)
-
     def _color_row_table(self, row, status):
         if "Enough" in status:
             color = QtGui.QColor(144, 238, 144)
@@ -134,8 +109,6 @@ class StockCheckPanel(QtWidgets.QWidget):
             color = QtGui.QColor(255, 99, 71)
         for col in range(self.summary_table.columnCount()):
             self.summary_table.item(row, col).setBackground(color)
-
-
 
 class AddCustomerDialog(QtWidgets.QDialog):
     """Popup dialog for adding a new customer"""
@@ -193,37 +166,30 @@ class AddCustomerDialog(QtWidgets.QDialog):
         CustomerDB.add_customer(name, phone, email, subscribed, address, notes)
         self.accept()
 
-
 class CustomerOrdersPopup(QtWidgets.QWidget):
     """Main window containing customers, orders, and line items"""
     def __init__(self):
         super().__init__()
         self.setWindowTitle("Customer Orders Manager")
-        self.resize(1000, 600)
+        self.resize(1200, 700)
 
-        # ---------------- MAIN LAYOUT ----------------
         main_layout = QtWidgets.QHBoxLayout(self)
 
-        # ========== LEFT PANEL ==========
+        # LEFT PANEL
         left_layout = QtWidgets.QVBoxLayout()
         left_layout.addWidget(QtWidgets.QLabel("Customers"))
-
         self.customer_list = QtWidgets.QListWidget()
         self.customer_list.currentItemChanged.connect(self.on_customer_selected)
         left_layout.addWidget(self.customer_list)
-
         self.delete_btn = QtWidgets.QPushButton("Delete Customer")
         self.add_customer_btn = QtWidgets.QPushButton("Add Customer")
         left_layout.addWidget(self.delete_btn)
         left_layout.addWidget(self.add_customer_btn)
-
         self.delete_btn.clicked.connect(self.delete_selected_customer)
         self.add_customer_btn.clicked.connect(self.show_add_customer_dialog)
 
-        # ========== MIDDLE PANEL ==========
+             # MIDDLE PANEL
         middle_layout = QtWidgets.QVBoxLayout()
-
-        # --- Customer Profile ---
         self.profile_group = QtWidgets.QGroupBox("Customer Profile")
         profile_layout = QtWidgets.QFormLayout()
         self.name_input = QtWidgets.QLineEdit(); self.name_input.setPlaceholderText("Name")
@@ -241,7 +207,6 @@ class CustomerOrdersPopup(QtWidgets.QWidget):
         self.profile_group.setLayout(profile_layout)
         middle_layout.addWidget(self.profile_group, 1)
 
-        # Auto-update customer fields
         self.name_input.textChanged.connect(lambda: self.update_customer_field('name'))
         self.phone_input.textChanged.connect(lambda: self.update_customer_field('phone'))
         self.email_input.textChanged.connect(lambda: self.update_customer_field('email'))
@@ -249,7 +214,6 @@ class CustomerOrdersPopup(QtWidgets.QWidget):
         self.address_input.textChanged.connect(lambda: self.update_customer_field('address'))
         self.notes_input.textChanged.connect(lambda: self.update_customer_field('notes'))
 
-        # --- Orders ---
         self.orders_group = QtWidgets.QGroupBox("Orders")
         orders_layout = QtWidgets.QVBoxLayout()
         self.order_table = QtWidgets.QTableWidget()
@@ -257,42 +221,27 @@ class CustomerOrdersPopup(QtWidgets.QWidget):
         self.order_table.setHorizontalHeaderLabels(["Order ID", "Date", "Status"])
         self.order_table.horizontalHeader().setSectionResizeMode(QtWidgets.QHeaderView.Stretch)
         orders_layout.addWidget(self.order_table)
-
-        # Buttons for orders
         self.add_order_btn = QtWidgets.QPushButton("Add Order")
         self.edit_order_btn = QtWidgets.QPushButton("Edit Order")
         self.delete_order_btn = QtWidgets.QPushButton("Delete Order")
         orders_layout.addWidget(self.add_order_btn)
         orders_layout.addWidget(self.edit_order_btn)
         orders_layout.addWidget(self.delete_order_btn)
-
         self.orders_group.setLayout(orders_layout)
         middle_layout.addWidget(self.orders_group, 2)
-
-        # Bind order actions
         self.add_order_btn.clicked.connect(self.add_order)
         self.edit_order_btn.clicked.connect(self.update_order)
         self.delete_order_btn.clicked.connect(self.delete_order)
-
-        # Detect order selection
         self.order_table.currentCellChanged.connect(self.on_order_selected)
 
-# ========== RIGHT PANEL ==========
-# ========== Line Items ==========
+        # RIGHT PANEL
         right_layout = QtWidgets.QVBoxLayout()
         right_layout.addWidget(QtWidgets.QLabel("Line Items"))
-
-        # --- Line Items Table ---
         self.lineitem_table = QtWidgets.QTableWidget()
         self.lineitem_table.setColumnCount(3)
         self.lineitem_table.setHorizontalHeaderLabels(["Line Item ID", "Product/Recipe", "Qty"])
         self.lineitem_table.horizontalHeader().setSectionResizeMode(QtWidgets.QHeaderView.Stretch)
         right_layout.addWidget(self.lineitem_table)
-
-        self.lineitem_table.horizontalHeader().setSectionResizeMode(QtWidgets.QHeaderView.Stretch)
-        right_layout.addWidget(self.lineitem_table)
-
-        # --- Line Item Buttons ---
         self.add_lineitem_btn = QtWidgets.QPushButton("Add Line Item")
         self.edit_lineitem_btn = QtWidgets.QPushButton("Edit Line Item")
         self.delete_lineitem_btn = QtWidgets.QPushButton("Delete Line Item")
@@ -302,28 +251,17 @@ class CustomerOrdersPopup(QtWidgets.QWidget):
         self.add_lineitem_btn.setEnabled(False)
         self.edit_lineitem_btn.setEnabled(False)
         self.delete_lineitem_btn.setEnabled(False)
-
-        # Bind actions
         self.add_lineitem_btn.clicked.connect(self.add_line_item)
         self.edit_lineitem_btn.clicked.connect(self.update_line_item)
         self.delete_lineitem_btn.clicked.connect(self.delete_line_item)
 
-# ========== stock Check ==========
-        # --- Stock Check Panel (C3R2) ---
-        self.stock_check_panel = StockCheckPanel()
+        # Stock Check Panel (C3R2)
         right_layout.addWidget(QtWidgets.QLabel("Stock Check (C3R2)"))
+        self.stock_check_panel = StockCheckPanel()
         right_layout.addWidget(self.stock_check_panel)
-
-
-
-
-
-        # ========== ADD PANELS TO MAIN LAYOUT ==========
         main_layout.addLayout(left_layout, 1)
         main_layout.addLayout(middle_layout, 2)
         main_layout.addLayout(right_layout, 2)
-
-        # Load customers into UI
         self.refresh_customers()
 
     # ---------------- LEFT PANEL FUNCS ----------------
@@ -510,30 +448,32 @@ class CustomerOrdersPopup(QtWidgets.QWidget):
         except Exception as e:
             print(f"[ERROR] UI remove_line_item failed: {e}")
     def add_line_item(self):
-        try:
-            if not hasattr(self, "selected_order_id") or self.selected_order_id is None:
-                QtWidgets.QMessageBox.warning(self, "Error", "Select an order first.")
-                return
+            try:
+                if not hasattr(self, "selected_order_id") or self.selected_order_id is None:
+                    QtWidgets.QMessageBox.warning(self, "Error", "Select an order first.")
+                    return
 
-            # Pick recipe
-            recipes = LineItemDB.get_all_recipes()
-            recipe_names = [r[1] for r in recipes]
-            recipe_choice, ok = QtWidgets.QInputDialog.getItem(self, "Select Recipe", "Recipe:", recipe_names, 0, False)
-            if not ok: return
+                # Pick recipe
+                recipes = LineItemDB.get_all_recipes()
+                recipe_names = [r[1] for r in recipes]
+                recipe_choice, ok = QtWidgets.QInputDialog.getItem(self, "Select Recipe", "Recipe:", recipe_names, 0, False)
+                if not ok: return
 
-            # Pick quantity
-            quantity, ok = QtWidgets.QInputDialog.getInt(self, "Quantity", "Enter quantity:", 1, 1)
-            if not ok: return
+                # Pick quantity
+                quantity, ok = QtWidgets.QInputDialog.getInt(self, "Quantity", "Enter quantity:", 1, 1)
+                if not ok: return
 
-            recipe_id = next(r[0] for r in recipes if r[1] == recipe_choice)
+                recipe_id = next(r[0] for r in recipes if r[1] == recipe_choice)
 
-            # Insert into DB
-            LineItemDB.add_order_item(self.selected_order_id, recipe_id, quantity)
-            self.load_line_items()
-            QtWidgets.QMessageBox.information(self, "Success", f"Added {quantity} x {recipe_choice}")
+                # Insert into DB
+                LineItemDB.add_order_item(self.selected_order_id, recipe_id, quantity)
+                self.load_line_items()
+                self.stock_check_panel.load_stock(self.selected_order_id)  # Refresh summary and tree
+                QtWidgets.QMessageBox.information(self, "Success", f"Added {quantity} x {recipe_choice}")
 
-        except Exception as e:
-            print(f"[ERROR] Adding line item failed: {e}")
+            except Exception as e:
+                print(f"[ERROR] Adding line item failed: {e}")
+
     def load_line_items(self):
         """Load all line items for the selected order into the table."""
         try:
@@ -595,10 +535,12 @@ class CustomerOrdersPopup(QtWidgets.QWidget):
                 QtWidgets.QMessageBox.warning(self, "Invalid Quantity", str(ve))
 
             self.load_line_items()
+            self.stock_check_panel.load_stock(self.selected_order_id)  # Refresh summary and tree
 
         except Exception as e:
             print(f"[ERROR] Updating line item failed: {e}")
             QtWidgets.QMessageBox.critical(self, "Error", f"Unexpected error:\n{e}")
+
     def delete_line_item(self):
         """Delete the currently selected line item."""
         try:
@@ -615,8 +557,10 @@ class CustomerOrdersPopup(QtWidgets.QWidget):
             if confirm == QtWidgets.QMessageBox.Yes:
                 LineItemDB.delete_order_item(lineitem_id)
                 self.load_line_items()
+                self.stock_check_panel.load_stock(self.selected_order_id)  # Refresh summary and tree
         except Exception as e:
             print(f"[ERROR] Deleting line item failed: {e}")
+                  
     def on_order_selected(self, row, column, prev_row, prev_column):
         if row < 0:
             self.selected_order_id = None
@@ -633,6 +577,16 @@ class CustomerOrdersPopup(QtWidgets.QWidget):
         self.load_line_items()
         self.stock_check_panel.load_stock(self.selected_order_id)  # <-- fixed here
 
+        # --- PRINT ALL INGREDIENTS FOR THIS ORDER ---
+        print(f"\n[DEBUG] Ingredients for Order {self.selected_order_id}:")
+        items = LineItemDB.get_order_items(self.selected_order_id)
+        for item in items:
+            lineitem_id = item[0]
+            recipe_id = LineItemDB.get_recipe_id(lineitem_id)
+            print(f"  LineItem {lineitem_id} (Recipe ID: {recipe_id}):")
+            ingredients = RecipeDB.get_recipe_ingredients(recipe_id)
+            for ing in ingredients:
+                print("    ", ing)
     # ---------------- Right Panel -row 2 -------------------------------------------------------------------------
     def _status(self, required, available):
         if available >= required:
