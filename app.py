@@ -23,6 +23,8 @@ class MainApp(QtWidgets.QMainWindow):
         central.setLayout(layout)
         layout.addWidget(QtWidgets.QLabel("Select an option from the menu above"))
 
+
+
         # --- Menu Bar ---
         menubar = self.menuBar()
 

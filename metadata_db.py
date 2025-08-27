@@ -15,7 +15,27 @@ class MetadataDB:
         """)
         conn.commit()
 
-
+    @staticmethod
+    def get_ingredients_for_recipe(recipe_id):
+        """
+        Returns a list of tuples:
+        (ingredient_id, ingredient_name, amount_per_recipe)
+        """
+        try:
+            conn = get_connection()
+            cur = conn.cursor()
+            cur.execute("""
+                SELECT i.id, i.name, ri.amount
+                FROM recipe_ingredients ri
+                JOIN ingredients i ON ri.ingredient_id = i.id
+                WHERE ri.recipe_id = ?
+            """, (recipe_id,))
+            ingredients = cur.fetchall()
+            conn.close()
+            return ingredients
+        except Exception as e:
+            print(f"[ERROR] Failed to fetch ingredients for recipe {recipe_id}: {e}")
+            return []
 
     # --- CRUD Methods ---
     # In MetadataDB

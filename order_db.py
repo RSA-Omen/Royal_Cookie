@@ -124,9 +124,6 @@ class OrderDB:
         Returns a list of tuples:
         (lineitem_id, order_id, recipe_name, quantity, unit)
         """
-
-
-
         try:
             conn = get_connection()
             cur = conn.cursor()

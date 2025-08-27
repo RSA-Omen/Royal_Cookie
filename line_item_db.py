@@ -47,6 +47,15 @@ class LineItemDB:
             return []
 
     @staticmethod
+    def get_recipe_id(lineitem_id):
+        conn = get_connection()
+        cur = conn.cursor()
+        cur.execute("SELECT recipe_id FROM line_items WHERE id=?", (lineitem_id,))
+        row = cur.fetchone()
+        conn.close()
+        return row[0] if row else None
+
+    @staticmethod
     def add_order_item(order_id, recipe_id, quantity):
         """Add a new line item to an order."""
         try:

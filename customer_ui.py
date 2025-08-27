@@ -1,12 +1,11 @@
-from PyQt5 import QtWidgets, QtCore
+from PyQt5 import QtWidgets, QtCore ,QtGui
 from PyQt5.QtWidgets import QInputDialog, QMessageBox
-
 from customer_db import CustomerDB
 from order_db import OrderDB
 from line_item_db import LineItemDB
-
-
-
+from metadata_db import MetadataDB
+from Stock_db import IngredientStockDB
+from recipe_db import RecipeDB  # add this import at the top
 
 ALLOWED_ORDER_STATUSES = [
     "Invoice Sent",
@@ -17,6 +16,126 @@ ALLOWED_ORDER_STATUSES = [
     "Shipped",
     "Closed"
 ]
+
+class StockCheckPanel(QtWidgets.QWidget):
+    def __init__(self):
+        super().__init__()
+        layout = QtWidgets.QVBoxLayout(self)
+
+        # Summary view (aggregated ingredient requirements)
+        self.summary_table = QtWidgets.QTableWidget()
+        self.summary_table.setColumnCount(4)
+        self.summary_table.setHorizontalHeaderLabels(["Ingredient", "Required", "Available", "Status"])
+        self.summary_table.horizontalHeader().setStretchLastSection(True)
+
+        # Breakdown view (Recipe -> Ingredients)
+        self.breakdown_tree = QtWidgets.QTreeWidget()
+        self.breakdown_tree.setHeaderLabels(["Recipe / Ingredient", "Required", "Available", "Status"])
+        self.breakdown_tree.header().setStretchLastSection(True)
+
+        layout.addWidget(QtWidgets.QLabel("Summary of Ingredients"))
+        layout.addWidget(self.summary_table, 1)
+        layout.addWidget(QtWidgets.QLabel("Breakdown by Recipe"))
+        layout.addWidget(self.breakdown_tree, 2)
+
+    def load_stock(self, order_id):
+        """
+        Load all ingredients for all line items of a specific order.
+        Populates the summary table and breakdown tree.
+        """
+        try:
+            stock_db = IngredientStockDB()
+
+            # 1. Get all line items for this order
+            items = LineItemDB.get_order_items(order_id) or []
+            if not items:
+                print(f"[DEBUG] No line items found for order {order_id}")
+                self.summary_table.setRowCount(0)
+                self.breakdown_tree.clear()
+                return
+
+            ingredient_totals = {}  # {metadata_id: {"name":..., "required":..., "available":...}}
+            self.breakdown_tree.clear()
+
+            for item in items:
+                lineitem_id, order_id, recipe_name, qty = item
+                recipe_name = str(recipe_name or "Unnamed Recipe")
+                qty = qty or 0
+
+                recipe_node = QtWidgets.QTreeWidgetItem([recipe_name])
+                self.breakdown_tree.addTopLevelItem(recipe_node)
+
+                # Get recipe_id from line item
+                recipe_id = LineItemDB.get_recipe_id(lineitem_id)
+                if not recipe_id:
+                    continue
+
+                # Get ingredients from RecipeDB
+                ingredients = RecipeDB.get_recipe_ingredients(recipe_id) or []
+                for ri_id, r_id, metadata_id, per_recipe_amt, unit, ing_name in ingredients:
+                    ing_name = str(ing_name or "Unnamed Ingredient")
+                    per_recipe_amt = per_recipe_amt or 0
+                    required = per_recipe_amt * qty
+                    available = stock_db.get_available_stock(metadata_id) or 0
+
+                    if metadata_id not in ingredient_totals:
+                        ingredient_totals[metadata_id] = {"name": ing_name, "required": 0, "available": available}
+                    ingredient_totals[metadata_id]["required"] += required
+
+                    status = self._status(required, available)
+                    ing_item = QtWidgets.QTreeWidgetItem([ing_name, str(required), str(available), status])
+                    self._color_row_safe(ing_item, status)
+                    recipe_node.addChild(ing_item)
+
+            # Populate summary table
+            self.summary_table.setRowCount(len(ingredient_totals))
+            for row, ing in enumerate(ingredient_totals.values()):
+                name = str(ing.get("name", ""))
+                required = ing.get("required", 0)
+                available = ing.get("available", 0)
+                status = self._status(required, available)
+
+                self.summary_table.setItem(row, 0, QtWidgets.QTableWidgetItem(name))
+                self.summary_table.setItem(row, 1, QtWidgets.QTableWidgetItem(str(required)))
+                self.summary_table.setItem(row, 2, QtWidgets.QTableWidgetItem(str(available)))
+                self.summary_table.setItem(row, 3, QtWidgets.QTableWidgetItem(status))
+
+                self._color_row_table_safe(row, status)
+
+        except Exception as e:
+            print(f"[ERROR] load_stock failed for order {order_id}: {e}")
+            import traceback
+            print(traceback.format_exc())
+
+    def _status(self, required, available):
+        if available >= required:
+            return "✅ Enough"
+        elif available > 0:
+            return "⚠️ Low"
+        else:
+            return "❌ Missing"
+
+    def _color_row(self, item, status):
+        if "Enough" in status:
+            color = QtGui.QColor(144, 238, 144)  # light green
+        elif "Low" in status:
+            color = QtGui.QColor(255, 165, 0)    # orange
+        else:
+            color = QtGui.QColor(255, 99, 71)    # red
+        for col in range(item.columnCount()):
+            item.setBackground(col, color)
+
+    def _color_row_table(self, row, status):
+        if "Enough" in status:
+            color = QtGui.QColor(144, 238, 144)
+        elif "Low" in status:
+            color = QtGui.QColor(255, 165, 0)
+        else:
+            color = QtGui.QColor(255, 99, 71)
+        for col in range(self.summary_table.columnCount()):
+            self.summary_table.item(row, col).setBackground(color)
+
+
 
 class AddCustomerDialog(QtWidgets.QDialog):
     """Popup dialog for adding a new customer"""
@@ -158,7 +277,8 @@ class CustomerOrdersPopup(QtWidgets.QWidget):
         # Detect order selection
         self.order_table.currentCellChanged.connect(self.on_order_selected)
 
-        # ========== RIGHT PANEL ==========
+# ========== RIGHT PANEL ==========
+# ========== Line Items ==========
         right_layout = QtWidgets.QVBoxLayout()
         right_layout.addWidget(QtWidgets.QLabel("Line Items"))
 
@@ -187,6 +307,14 @@ class CustomerOrdersPopup(QtWidgets.QWidget):
         self.add_lineitem_btn.clicked.connect(self.add_line_item)
         self.edit_lineitem_btn.clicked.connect(self.update_line_item)
         self.delete_lineitem_btn.clicked.connect(self.delete_line_item)
+
+# ========== stock Check ==========
+        # --- Stock Check Panel (C3R2) ---
+        self.stock_check_panel = StockCheckPanel()
+        right_layout.addWidget(QtWidgets.QLabel("Stock Check (C3R2)"))
+        right_layout.addWidget(self.stock_check_panel)
+
+
 
 
 
@@ -490,7 +618,6 @@ class CustomerOrdersPopup(QtWidgets.QWidget):
         except Exception as e:
             print(f"[ERROR] Deleting line item failed: {e}")
     def on_order_selected(self, row, column, prev_row, prev_column):
-        """Triggered when the user selects an order in the table."""
         if row < 0:
             self.selected_order_id = None
             self.add_lineitem_btn.setEnabled(False)
@@ -504,13 +631,34 @@ class CustomerOrdersPopup(QtWidgets.QWidget):
         self.edit_lineitem_btn.setEnabled(True)
         self.delete_lineitem_btn.setEnabled(True)
         self.load_line_items()
+        self.stock_check_panel.load_stock(self.selected_order_id)  # <-- fixed here
 
     # ---------------- Right Panel -row 2 -------------------------------------------------------------------------
-
-
-
-
-
+    def _status(self, required, available):
+        if available >= required:
+            return "✅ Enough"
+        elif available > 0:
+            return "⚠️ Low"
+        else:
+            return "❌ Missing"
+    def _color_row(self, item, status):
+        if "Enough" in status:
+            color = QtGui.QColor(144, 238, 144)  # light green
+        elif "Low" in status:
+            color = QtGui.QColor(255, 165, 0)    # orange
+        else:
+            color = QtGui.QColor(255, 99, 71)    # red
+        for col in range(item.columnCount()):
+            item.setBackground(col, color)
+    def _color_row_table(self, row, status):
+        if "Enough" in status:
+            color = QtGui.QColor(144, 238, 144)
+        elif "Low" in status:
+            color = QtGui.QColor(255, 165, 0)
+        else:
+            color = QtGui.QColor(255, 99, 71)
+        for col in range(self.summary_table.columnCount()):
+            self.summary_table.item(row, col).setBackground(color)
 
 
 # ---------------- Run demo ----------------

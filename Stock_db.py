@@ -41,6 +41,15 @@ class IngredientStockDB:
         conn.close()
 
     @staticmethod
+    def get_available_stock(metadata_id):
+        conn = get_connection()
+        cur = conn.cursor()
+        cur.execute("SELECT quantity_available FROM ingredient_stock WHERE metadata_id=?", (metadata_id,))
+        row = cur.fetchone()
+        conn.close()
+        return row[0] if row else 0
+
+    @staticmethod
     def update_stock(stock_id, quantity):
         conn = get_connection()
         cur = conn.cursor()
