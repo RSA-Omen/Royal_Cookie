@@ -7,6 +7,95 @@ from reservation_db import ReservationDB
 
 
 class ProductionController:
+    def load_inventory(self):
+        """Populate the inventory table with current stock, batch, expiry, reserved, and available quantities."""
+        table = self.ui.inventory_table
+        from ingredient_db import IngredientDB
+        from Stock_db import IngredientStockDB
+        from reservation_db import ReservationDB
+        # Get all ingredients (metadata)
+        ingredients = IngredientDB.get_all_ingredients()
+        # Get all stock records
+        stock_records = IngredientStockDB.get_stock()
+        # Build a map: ingredient_id -> total reserved
+        reserved_map = {}
+        for ing in ingredients:
+            metadata_id = ing["MetadataID"]
+            reserved_map[metadata_id] = ReservationDB.get_reserved_qty(metadata_id)
+        table.setRowCount(0)
+        for stock in stock_records:
+            # stock: (id, ingredient_id, quantity, last_updated)
+            stock_id, ingredient_id, quantity, last_updated = stock
+            # Find ingredient info
+            ing = next((i for i in ingredients if i["ID"] == ingredient_id), None)
+            if not ing:
+                continue
+            name = ing["Name"]
+            unit = ing["Unit"]
+            # Reserved for this ingredient
+            reserved = reserved_map.get(ingredient_id, 0)
+            available = max(0, quantity - reserved)
+            # For now, batch = stock_id, purchase date = last_updated, expiry = ""
+            row_idx = table.rowCount()
+            table.insertRow(row_idx)
+            table.setItem(row_idx, 0, QtWidgets.QTableWidgetItem(str(name)))
+            table.setItem(row_idx, 1, QtWidgets.QTableWidgetItem(str(stock_id)))
+            table.setItem(row_idx, 2, QtWidgets.QTableWidgetItem(str(last_updated)))
+            table.setItem(row_idx, 3, QtWidgets.QTableWidgetItem(""))
+            table.setItem(row_idx, 4, QtWidgets.QTableWidgetItem(f"{available} {unit}"))
+            table.setItem(row_idx, 5, QtWidgets.QTableWidgetItem(f"{reserved} {unit}"))
+    def load_reservations(self):
+        """Load all active reservations and display in the reservations table."""
+        table = self.ui.reservations_table
+        from reservation_db import ReservationDB
+        from order_db import OrderDB
+        from line_item_db import LineItemDB
+        from metadata_db import MetadataDB
+        from ingredient_db import IngredientDB
+        from purchases_db import PurchaseDB
+        reservations = ReservationDB.get_reservations(status='active')
+        table.setRowCount(0)
+        for row_idx, res in enumerate(reservations):
+            # reservations: id, order_id, lineitem_id, metadata_id, qty, reserved_at, reserved_until, status
+            res_id, order_id, lineitem_id, metadata_id, qty, reserved_at, reserved_until, status = res
+            # Get order info
+            order = None
+            try:
+                order = OrderDB.get_all_orders()
+                order = next((o for o in order if o[0] == order_id), None)
+            except Exception:
+                pass
+            # Get line item info
+            lineitem = None
+            try:
+                lineitem = LineItemDB.get_order_items(order_id)
+                lineitem = next((li for li in lineitem if li[0] == lineitem_id), None)
+            except Exception:
+                pass
+            # Get ingredient info
+            ingredient = None
+            try:
+                ingredient = MetadataDB.get_all_metadata()
+                ingredient = next((m for m in ingredient if m[0] == metadata_id), None)
+            except Exception:
+                pass
+            # Get batch/purchase info (optional, may be blank)
+            batch = ""
+            purchase_date = ""
+            expiry = ""
+            # (You can expand this if you track batch/expiry per reservation)
+            # Compose display values
+            table.insertRow(row_idx)
+            table.setItem(row_idx, 0, QtWidgets.QTableWidgetItem(str(res_id)))
+            table.setItem(row_idx, 1, QtWidgets.QTableWidgetItem(str(order_id)))
+            table.setItem(row_idx, 2, QtWidgets.QTableWidgetItem(str(lineitem_id)))
+            table.setItem(row_idx, 3, QtWidgets.QTableWidgetItem(ingredient[1] if ingredient else str(metadata_id)))
+            table.setItem(row_idx, 4, QtWidgets.QTableWidgetItem(batch))
+            table.setItem(row_idx, 5, QtWidgets.QTableWidgetItem(purchase_date))
+            table.setItem(row_idx, 6, QtWidgets.QTableWidgetItem(expiry))
+            table.setItem(row_idx, 7, QtWidgets.QTableWidgetItem(str(qty)))
+            table.setItem(row_idx, 8, QtWidgets.QTableWidgetItem(str(reserved_until or "")))
+
     def __init__(self, ui):
         print("ProductionController initialized")
         self.ui = ui
@@ -16,6 +105,19 @@ class ProductionController:
         self.ui.release_btn.clicked.connect(self.release_reservations)
         self.ui.status_btn.clicked.connect(self.change_order_status)
         self.ui.notes_text.focusOutEvent = self.save_production_note_on_focus_out
+
+        # Load reservations and inventory tabs on startup
+        self.load_reservations()
+        self.load_inventory()
+        self.ui.tabs.currentChanged.connect(self._on_tab_changed)
+
+    def _on_tab_changed(self, idx):
+        # Reload reservations or inventory when switching to the tab
+        tab_text = self.ui.tabs.tabText(idx)
+        if tab_text == "Reservations":
+            self.load_reservations()
+        elif tab_text == "Inventory":
+            self.load_inventory()
 
     def load_orders(self):
         orders = OrderDB.get_all_orders()
@@ -171,21 +273,47 @@ class ProductionController:
         self.load_ingredients(order_id)
 
     def release_reservations(self):
-        selected = self.ui.orders_table.currentRow()
-        if selected < 0:
-            QtWidgets.QMessageBox.warning(self.ui, "No Order Selected", "Please select an order to release reservations for.")
+        # If Reservations tab is active, release selected reservations
+        if self.ui.tabs.tabText(self.ui.tabs.currentIndex()) == "Reservations":
+            selected_rows = self.ui.reservations_table.selectionModel().selectedRows()
+            if not selected_rows:
+                QtWidgets.QMessageBox.warning(self.ui, "No Selection", "Please select one or more reservations to release.")
+                return
+            # Collect unique order_ids from selected reservation rows
+            order_ids = set()
+            for idx in selected_rows:
+                order_id_item = self.ui.reservations_table.item(idx.row(), 1)
+                if order_id_item:
+                    order_ids.add(int(order_id_item.text()))
+            if not order_ids:
+                QtWidgets.QMessageBox.warning(self.ui, "No Order Found", "Could not determine order(s) from selection.")
+                return
+            released_any = False
+            for order_id in order_ids:
+                reservations = ReservationDB.get_reservations(order_id=order_id, status='active')
+                for reservation in reservations:
+                    reservation_id = reservation[0]
+                    ReservationDB.release_reservation(reservation_id)
+                    released_any = True
+            if released_any:
+                QtWidgets.QMessageBox.information(self.ui, "Released", "All reservations for the selected order(s) have been released.")
+            else:
+                QtWidgets.QMessageBox.information(self.ui, "No Reservations", "No active reservations found for the selected order(s).")
+            self.load_reservations()
             return
-        order_id = int(self.ui.orders_table.item(selected, 0).text())
-
-        # Get all reservations for this order
-        reservations = ReservationDB.get_reservations(order_id=order_id, status='active')
-        if not reservations:
-            QtWidgets.QMessageBox.information(self.ui, "No Reservations", "No active reservations found for this order.")
-            return
-
-        for reservation in reservations:
-            reservation_id = reservation[0]  # Assuming id is the first column
-            ReservationDB.release_reservation(reservation_id)
-
-        QtWidgets.QMessageBox.information(self.ui, "Released", "All reservations for this order have been released.")
-        self.load_ingredients(order_id)
+        else:
+            # Default: release all reservations for selected order
+            selected = self.ui.orders_table.currentRow()
+            if selected < 0:
+                QtWidgets.QMessageBox.warning(self.ui, "No Order Selected", "Please select an order to release reservations for.")
+                return
+            order_id = int(self.ui.orders_table.item(selected, 0).text())
+            reservations = ReservationDB.get_reservations(order_id=order_id, status='active')
+            if not reservations:
+                QtWidgets.QMessageBox.information(self.ui, "No Reservations", "No active reservations found for this order.")
+                return
+            for reservation in reservations:
+                reservation_id = reservation[0]  # Assuming id is the first column
+                ReservationDB.release_reservation(reservation_id)
+            QtWidgets.QMessageBox.information(self.ui, "Released", "All reservations for this order have been released.")
+            self.load_ingredients(order_id)

@@ -76,6 +76,9 @@ class ProductionUI(QtWidgets.QWidget):
             "Expiry", "Qty", "Reserved Until"
         ])
         self.reservations_table.horizontalHeader().setSectionResizeMode(QtWidgets.QHeaderView.Stretch)
+        # Ensure row selection and multi-select is enabled
+        self.reservations_table.setSelectionBehavior(QtWidgets.QAbstractItemView.SelectRows)
+        self.reservations_table.setSelectionMode(QtWidgets.QAbstractItemView.MultiSelection)
         reservations_layout.addWidget(self.reservations_table)
         self.tabs.addTab(self.reservations_tab, "Reservations")
 

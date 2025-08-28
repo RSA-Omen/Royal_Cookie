@@ -1,6 +1,24 @@
 from db import get_connection
 
 class OrderDB:
+    @staticmethod
+    def get_orders_by_customer(customer_id):
+        """Return all orders for a specific customer, ordered by order_date descending."""
+        try:
+            conn = get_connection()
+            cur = conn.cursor()
+            cur.execute("""
+                SELECT id, order_date, status
+                FROM orders
+                WHERE customer_id = ?
+                ORDER BY order_date DESC
+            """, (customer_id,))
+            rows = cur.fetchall()
+            conn.close()
+            return rows
+        except Exception as e:
+            print(f"[ERROR] Failed to fetch orders for customer {customer_id}: {e}")
+            return []
 
     @staticmethod
     def init_orders_table(connection):
