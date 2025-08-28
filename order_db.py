@@ -6,47 +6,44 @@ class OrderDB:
     def init_orders_table(connection):
         """Create the orders table if it doesn't exist."""
         try:
-            conn = get_connection()
-            cur = conn.cursor()
+            cur = connection.cursor()
             cur.execute('''
                 CREATE TABLE IF NOT EXISTS orders (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     customer_id INTEGER NOT NULL,
                     order_date TEXT NOT NULL,
+                    delivery_date TEXT,
                     status TEXT NOT NULL,
                     total_amount REAL DEFAULT 0,
                     notes TEXT,
                     FOREIGN KEY(customer_id) REFERENCES customers(id)
                 )
             ''')
-            conn.commit()
-            conn.close()
+            connection.commit()
         except Exception as e:
             print(f"[ERROR] Failed to initialize orders table: {e}")
 
     @staticmethod
-    def get_orders_by_customer(customer_id):
-        """
-        Fetch all orders belonging to a specific customer.
-        Returns a list of tuples (id, order_date, status, total_amount, notes).
-        """
+    def get_all_orders():
+        """Return all orders with customer names."""
         try:
             conn = get_connection()
             cur = conn.cursor()
             cur.execute("""
-                SELECT id, order_date, status, total_amount, notes
-                FROM orders
-                WHERE customer_id=?
-            """, (customer_id,))
+                SELECT o.id, c.name, o.status, o.order_date, o.delivery_date, o.total_amount, o.notes
+                FROM orders o
+                JOIN customers c ON o.customer_id = c.id
+                ORDER BY o.order_date DESC
+            """)
             rows = cur.fetchall()
             conn.close()
             return rows
         except Exception as e:
-            print(f"[ERROR] Failed to fetch orders: {e}")
+            print(f"[ERROR] Failed to fetch all orders: {e}")
             return []
 
     @staticmethod
-    def add_order(customer_id, notes="New Order"):
+    def add_order(customer_id, delivery_date=None, notes="New Order"):
         """
         Insert a new order for the given customer.
         Returns the order_id of the new order.
@@ -55,9 +52,9 @@ class OrderDB:
             conn = get_connection()
             cur = conn.cursor()
             cur.execute("""
-                INSERT INTO orders (customer_id, order_date, status, total_amount, notes)
-                VALUES (?, DATE('now'), 'New Order', 0, ?)
-            """, (customer_id, notes))
+                INSERT INTO orders (customer_id, order_date, delivery_date, status, total_amount, notes)
+                VALUES (?, DATE('now'), ?, 'New Order', 0, ?)
+            """, (customer_id, delivery_date, notes))
             conn.commit()
             order_id = cur.lastrowid
             conn.close()
@@ -65,9 +62,6 @@ class OrderDB:
         except Exception as e:
             print(f"[ERROR] Failed to add order: {e}")
             return None
-
-
-
 
     @staticmethod
     def delete_order(order_id):
@@ -100,59 +94,3 @@ class OrderDB:
         except Exception as e:
             print(f"[ERROR] Failed to update order: {e}")
 
-    @staticmethod
-    def get_all_recipes():
-        """
-        Fetch all recipes.
-        Returns a list of tuples (id, name).
-        """
-        try:
-            conn = get_connection()
-            cur = conn.cursor()
-            cur.execute("SELECT id, name FROM recipes")
-            recipes = cur.fetchall()
-            conn.close()
-            return recipes
-        except Exception as e:
-            print(f"[ERROR] Failed to fetch recipes: {e}")
-            return []
-
-    @staticmethod
-    def get_order_items(order_id):
-        """
-        Fetch all line items for a specific order.
-        Returns a list of tuples:
-        (lineitem_id, order_id, recipe_name, quantity, unit)
-        """
-        try:
-            conn = get_connection()
-            cur = conn.cursor()
-            cur.execute("""
-                        SELECT li.id, li.order_id, r.name, li.quantity
-                        FROM line_items li
-                                 JOIN recipes r ON li.recipe_id = r.id
-                        WHERE li.order_id = ?
-                        """, (order_id,))
-            items = cur.fetchall()
-            conn.close()
-            return items
-        except Exception as e:
-            print(f"[ERROR] Failed to fetch order items: {e}")
-            return []
-
-    def get_all_orders():
-        """Return all orders in the database."""
-        try:
-            conn = get_connection()
-            cur = conn.cursor()
-            cur.execute("""
-                SELECT id, customer_id, order_date, status, total_amount, notes
-                FROM orders
-                ORDER BY order_date DESC
-            """)
-            rows = cur.fetchall()
-            conn.close()
-            return rows
-        except Exception as e:
-            print(f"[ERROR] Failed to fetch all orders: {e}")
-            return []

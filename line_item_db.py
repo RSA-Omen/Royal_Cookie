@@ -18,7 +18,6 @@ class LineItemDB:
                 )
             ''')
             connection.commit()
-            connection.close()
         except Exception as e:
             print(f"[ERROR] Failed to initialize line_items table: {e}")
 
@@ -27,21 +26,22 @@ class LineItemDB:
     @staticmethod
     def get_order_items(order_id):
         """
-        Fetch all line items for a given order.
-        Returns a list of tuples: (id, order_id, recipe_id, quantity)
+        Fetch all line items for a specific order.
+        Returns a list of tuples:
+        (lineitem_id, order_id, recipe_name, quantity, unit)
         """
         try:
             conn = get_connection()
             cur = conn.cursor()
             cur.execute("""
-                SELECT li.id, li.order_id, r.name, li.quantity
-                FROM line_items li
-                JOIN recipes r ON li.recipe_id = r.id
-                WHERE li.order_id=?
-            """, (order_id,))
-            rows = cur.fetchall()
+                        SELECT li.id, li.order_id, r.name, li.quantity
+                        FROM line_items li
+                                 JOIN recipes r ON li.recipe_id = r.id
+                        WHERE li.order_id = ?
+                        """, (order_id,))
+            items = cur.fetchall()
             conn.close()
-            return rows
+            return items
         except Exception as e:
             print(f"[ERROR] Failed to fetch order items: {e}")
             return []

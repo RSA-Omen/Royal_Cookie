@@ -10,12 +10,14 @@ from metadata_db import MetadataDB
 from customer_db import CustomerDB
 from order_db import OrderDB
 from line_item_db import LineItemDB
+from reservation_db import ReservationDB
 # the main database initializer
 
 
 def init_db():
     """Initialize all tables in the database."""
     connection = DB_handler.get_connection()
+
     IngredientDB.init_ingredient_db(connection)
     IngredientStockDB.init_ingredient_stock_db(connection)
     RecipeDB.init_recipe_db(connection)
@@ -23,5 +25,7 @@ def init_db():
     PurchaseDB.init_ingredient_history_db(connection)
     CustomerDB.init_customer_db(connection)
     OrderDB.init_orders_table(connection)
+    ReservationDB.init_reservations_table(connection)
     LineItemDB.init_line_items_table(connection)
+
     connection.close()

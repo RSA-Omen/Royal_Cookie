@@ -49,6 +49,23 @@ class RecipeDB:
         return rows
 
     @staticmethod
+    def get_all_recipes():
+        """
+        Fetch all recipes.
+        Returns a list of tuples (id, name).
+        """
+        try:
+            conn = get_connection()
+            cur = conn.cursor()
+            cur.execute("SELECT id, name FROM recipes")
+            recipes = cur.fetchall()
+            conn.close()
+            return recipes
+        except Exception as e:
+            print(f"[ERROR] Failed to fetch recipes: {e}")
+            return []
+
+    @staticmethod
     def update_recipe(recipe_id, name, output_quantity):
         conn = get_connection()
         cur = conn.cursor()

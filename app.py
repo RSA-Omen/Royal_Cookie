@@ -9,6 +9,7 @@ from recipes_ui import RecipesPopup
 from metadata_ui import MetadataPopup
 from customer_ui import CustomerOrdersPopup
 from order_ui import OrdersPopup
+from production_ui import ProductionUI
 
 class MainApp(QtWidgets.QMainWindow):
     def __init__(self):
@@ -42,7 +43,7 @@ class MainApp(QtWidgets.QMainWindow):
         # Customers / Orders menu
         customers_menu = menubar.addMenu("Customers & Orders")
         customers_menu.addAction("Manage Customers", self.open_customers)
-        customers_menu.addAction("Manage Orders", self.open_orders)
+        customers_menu.addAction("Production Dashboard", self.open_dashboard)
 
     # --- Open windows ---
     def open_ingredients(self):
@@ -69,9 +70,9 @@ class MainApp(QtWidgets.QMainWindow):
         self.customers_window = CustomerOrdersPopup()
         self.customers_window.show()
 
-    def open_orders(self):
-        self.orders_window = OrdersPopup()
-        self.orders_window.show()
+    def open_dashboard(self):
+        self.production_window = ProductionUI()
+        self.production_window.show()
 
 
 if __name__ == "__main__":
