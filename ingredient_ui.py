@@ -1,6 +1,6 @@
 from PyQt5 import QtWidgets
-from ingredient_db import IngredientDB
-from metadata_db import MetadataDB
+from ingredient_logic import IngredientLogic
+from metadata_logic import MetadataLogic
 
 class IngredientsPopup(QtWidgets.QWidget):
     def __init__(self):
@@ -25,11 +25,9 @@ class IngredientsPopup(QtWidgets.QWidget):
         form_layout = QtWidgets.QHBoxLayout()
         self.name_input = QtWidgets.QLineEdit(); self.name_input.setPlaceholderText("Name")
         self.size_input = QtWidgets.QLineEdit(); self.size_input.setPlaceholderText("Size")
-        self.unit_input = QtWidgets.QLineEdit(); self.unit_input.setPlaceholderText("Unit")
         self.meta_input = QtWidgets.QComboBox()
         form_layout.addWidget(self.name_input)
         form_layout.addWidget(self.size_input)
-        form_layout.addWidget(self.unit_input)
         form_layout.addWidget(self.meta_input)
 
         # --- Table ---
@@ -55,82 +53,48 @@ class IngredientsPopup(QtWidgets.QWidget):
         self.refresh_table()
 
     def load_metadata(self):
-        """Load metadata tags into combo box with debug prints."""
-        try:
-            self.metadata_list = MetadataDB.get_all_metadata()
-            print("DEBUG: Metadata rows from DB:", self.metadata_list)
-
-            self.meta_input.clear()
-            self.meta_input.addItem("Select metadata", -1)  # placeholder
-            if not self.metadata_list:
-                print("DEBUG: No metadata found in DB!")
-            else:
-                for meta_id, meta_name, meta_desc in self.metadata_list:
-                    print(f"DEBUG: Adding metadata -> ID: {meta_id}, Name: {meta_name}")
-                    self.meta_input.addItem(meta_name, meta_id)
-
-            self.meta_input.setCurrentIndex(0)
-
-        except Exception as e:
-            print("Error loading metadata:", e)
+        self.metadata_list = MetadataLogic.get_all_metadata()
+        self.meta_input.clear()
+        self.meta_input.addItem("Select metadata", -1)
+        for meta in self.metadata_list:
+            self.meta_input.addItem(meta["Name"], meta["ID"])
+        self.meta_input.setCurrentIndex(0)
 
     def refresh_table(self):
-        """Load ingredients into the table."""
-        try:
-            self.data = IngredientDB.get_ingredients()
-            print("DEBUG: Ingredients loaded:", self.data)
-
-            self.table.setRowCount(0)
-            if not self.data:
-                return
-
-            self.table.setRowCount(len(self.data))
-            for row, ing in enumerate(self.data):
-                self.table.setItem(row, 0, QtWidgets.QTableWidgetItem(str(ing.get("ID", ""))))
-                self.table.setItem(row, 1, QtWidgets.QTableWidgetItem(str(ing.get("Name", ""))))
-                self.table.setItem(row, 2, QtWidgets.QTableWidgetItem(str(ing.get("Size", ""))))
-                self.table.setItem(row, 3, QtWidgets.QTableWidgetItem(str(ing.get("Unit", ""))))
-
-                # Lookup metadata safely
-                meta_name = "Unknown"
-                meta_id = ing.get("MetadataID", None)
-                if meta_id is not None:
-                    for m in self.metadata_list:
-                        if m[0] == meta_id:
-                            meta_name = m[1]
-                            break
-                self.table.setItem(row, 4, QtWidgets.QTableWidgetItem(meta_name))
-
-        except Exception as e:
-            print("Error refreshing table:", e)
+        self.data = IngredientLogic.get_ingredients()
+        self.table.setRowCount(0)
+        for ing in self.data:
+            row = self.table.rowCount()
+            self.table.insertRow(row)
+            self.table.setItem(row, 0, QtWidgets.QTableWidgetItem(str(ing["ID"])))
+            self.table.setItem(row, 1, QtWidgets.QTableWidgetItem(ing["Name"]))
+            self.table.setItem(row, 2, QtWidgets.QTableWidgetItem(str(ing["Size"])))
+            # Lookup unit from metadata
+            meta = next((m for m in self.metadata_list if m["ID"] == ing["MetadataID"]), None)
+            unit = meta["Unit"] if meta else ""
+            self.table.setItem(row, 3, QtWidgets.QTableWidgetItem(unit))
+            meta_name = meta["Name"] if meta else "Unknown"
+            self.table.setItem(row, 4, QtWidgets.QTableWidgetItem(meta_name))
 
     def add_ingredient(self):
         name = self.name_input.text().strip()
-        unit = self.unit_input.text().strip()
         size_text = self.size_input.text().strip()
         meta_index = self.meta_input.currentIndex()
         meta_id = self.meta_input.itemData(meta_index)
-
-        if not name or not unit:
-            QtWidgets.QMessageBox.warning(self, "Error", "Name and Unit cannot be empty")
+        if not name:
+            QtWidgets.QMessageBox.warning(self, "Error", "Name cannot be empty")
             return
-
         try:
             size = float(size_text)
         except ValueError:
             QtWidgets.QMessageBox.warning(self, "Error", "Size must be a number")
             return
-
         if meta_id == -1:
             QtWidgets.QMessageBox.warning(self, "Error", "Please select a metadata tag")
             return
-
-        try:
-            IngredientDB.add_ingredient(name, size, unit, meta_id)
-            self.refresh_table()
-            self.clear_form()
-        except Exception as e:
-            print("Error adding ingredient:", e)
+        IngredientLogic.add_ingredient(name, size, meta_id)
+        self.refresh_table()
+        self.clear_form()
 
     def update_ingredient(self):
         selected = self.table.currentRow()
@@ -138,56 +102,39 @@ class IngredientsPopup(QtWidgets.QWidget):
             return
         ing_id = self.data[selected]["ID"]
         name = self.name_input.text().strip()
-        unit = self.unit_input.text().strip()
         size_text = self.size_input.text().strip()
         meta_index = self.meta_input.currentIndex()
         meta_id = self.meta_input.itemData(meta_index)
-
-        if not name or not unit:
-            QtWidgets.QMessageBox.warning(self, "Error", "Name and Unit cannot be empty")
+        if not name:
+            QtWidgets.QMessageBox.warning(self, "Error", "Name cannot be empty")
             return
-
         try:
             size = float(size_text)
         except ValueError:
             QtWidgets.QMessageBox.warning(self, "Error", "Size must be a number")
             return
-
-        try:
-            IngredientDB.update_ingredient(ing_id, name, size, unit, meta_id)
-            self.refresh_table()
-            self.clear_form()
-        except Exception as e:
-            print("Error updating ingredient:", e)
+        IngredientLogic.update_ingredient(ing_id, name, size, meta_id)
+        self.refresh_table()
+        self.clear_form()
 
     def delete_ingredient(self):
         selected = self.table.currentRow()
         if selected < 0:
             return
         ing_id = self.data[selected]["ID"]
-        try:
-            IngredientDB.delete_ingredient(ing_id)
-            self.refresh_table()
-            self.clear_form()
-        except Exception as e:
-            print("Error deleting ingredient:", e)
+        IngredientLogic.delete_ingredient(ing_id)
+        self.refresh_table()
+        self.clear_form()
 
     def fill_form(self, row, column):
         ing = self.data[row]
-        self.name_input.setText(str(ing.get("Name", "")))
-        self.size_input.setText(str(ing.get("Size", "")))
-        self.unit_input.setText(str(ing.get("Unit", "")))
-
-        # Select metadata safely
-        meta_id = ing.get("MetadataID", -1)
+        self.name_input.setText(ing["Name"])
+        self.size_input.setText(str(ing["Size"]))
+        meta_id = ing["MetadataID"]
         index = self.meta_input.findData(meta_id)
-        if index >= 0:
-            self.meta_input.setCurrentIndex(index)
-        else:
-            self.meta_input.setCurrentIndex(0)
+        self.meta_input.setCurrentIndex(index if index >= 0 else 0)
 
     def clear_form(self):
         self.name_input.clear()
         self.size_input.clear()
-        self.unit_input.clear()
         self.meta_input.setCurrentIndex(0)
