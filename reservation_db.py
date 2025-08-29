@@ -2,109 +2,91 @@ from db import get_connection
 
 class ReservationDB:
     @staticmethod
-    def init_reservations_table(connection):
-        """Create the reservations table if it doesn't exist."""
-        try:
-            cur = connection.cursor()
-            cur.execute("""
-                CREATE TABLE IF NOT EXISTS reservations (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    order_id INTEGER NOT NULL,
-                    lineitem_id INTEGER NOT NULL,
-                    metadata_id INTEGER NOT NULL,
-                    qty REAL NOT NULL,
-                    reserved_at TEXT DEFAULT CURRENT_TIMESTAMP,
-                    reserved_until TEXT,
-                    status TEXT DEFAULT 'active',
-                    FOREIGN KEY(order_id) REFERENCES orders(id),
-                    FOREIGN KEY(lineitem_id) REFERENCES line_items(id),
-                    FOREIGN KEY(metadata_id) REFERENCES metadata(id)
-                )
-            """)
-            connection.commit()
-        except Exception as e:
-            print(f"[ERROR] Failed to initialize reservations table: {e}")
+    def init_reservations_db(conn):
+        """
+        Initialize the reservations table.
+        Each reservation links a line item to a specific stock batch (ingredient_stock).
+        """
+        cursor = conn.cursor()
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS reservations (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                lineitem_id INTEGER NOT NULL,
+                ingredient_stock_id INTEGER NOT NULL,
+                qty REAL NOT NULL,
+                status TEXT DEFAULT 'active',
+                reserved_at TEXT DEFAULT CURRENT_TIMESTAMP,
+                reserved_until TEXT,
+                FOREIGN KEY (lineitem_id) REFERENCES line_items(id),
+                FOREIGN KEY (ingredient_stock_id) REFERENCES stock(id)
+            )
+        ''')
+        conn.commit()
 
     @staticmethod
-    def add_reservation(order_id, lineitem_id, metadata_id, qty, reserved_until=None):
-        """Add a new reservation."""
-        try:
-            conn = get_connection()
-            cur = conn.cursor()
-            cur.execute("""
-                INSERT INTO reservations (order_id, lineitem_id, metadata_id, qty, reserved_until)
-                VALUES (?, ?, ?, ?, ?)
-            """, (order_id, lineitem_id, metadata_id, qty, reserved_until))
-            conn.commit()
-            conn.close()
-        except Exception as e:
-            print(f"[ERROR] Failed to add reservation: {e}")
+    def add_reservation(lineitem_id, ingredient_stock_id, qty, status='active', reserved_until=None):
+        conn = get_connection()
+        cursor = conn.cursor()
+        cursor.execute(
+            'INSERT INTO reservations (lineitem_id, ingredient_stock_id, qty, status, reserved_until) VALUES (?, ?, ?, ?, ?)',
+            (lineitem_id, ingredient_stock_id, qty, status, reserved_until)
+        )
+        conn.commit()
+        conn.close()
 
     @staticmethod
-    def get_reservations(order_id=None, status='active'):
-        """Get reservations, optionally filtered by order and status."""
-        try:
-            conn = get_connection()
-            cur = conn.cursor()
-            if order_id:
-                cur.execute("""
-                    SELECT * FROM reservations WHERE order_id=? AND status=?
-                """, (order_id, status))
-            else:
-                cur.execute("""
-                    SELECT * FROM reservations WHERE status=?
-                """, (status,))
-            rows = cur.fetchall()
-            conn.close()
-            return rows
-        except Exception as e:
-            print(f"[ERROR] Failed to fetch reservations: {e}")
-            return []
+    def get_reservations_for_lineitem(lineitem_id):
+        conn = get_connection()
+        cursor = conn.cursor()
+        cursor.execute(
+            "SELECT id, lineitem_id, ingredient_stock_id, qty, status, reserved_at, reserved_until FROM reservations WHERE lineitem_id=?",
+            (lineitem_id,)
+        )
+        rows = cursor.fetchall()
+        conn.close()
+        return [
+            {
+                "ID": r[0],
+                "LineItemID": r[1],
+                "IngredientStockID": r[2],
+                "Qty": r[3],
+                "Status": r[4],
+                "ReservedAt": r[5],
+                "ReservedUntil": r[6],
+            }
+            for r in rows
+        ]
 
     @staticmethod
-    def release_reservation(reservation_id):
-        """Mark a reservation as released."""
-        try:
-            conn = get_connection()
-            cur = conn.cursor()
-            cur.execute("""
-                UPDATE reservations SET status='released' WHERE id=?
-            """, (reservation_id,))
-            conn.commit()
-            conn.close()
-        except Exception as e:
-            print(f"[ERROR] Failed to release reservation: {e}")
+    def update_reservation(reservation_id, qty=None, status=None, reserved_until=None):
+        conn = get_connection()
+        cursor = conn.cursor()
+        updates = []
+        params = []
+        if qty is not None:
+            updates.append("qty=?")
+            params.append(qty)
+        if status is not None:
+            updates.append("status=?")
+            params.append(status)
+        if reserved_until is not None:
+            updates.append("reserved_until=?")
+            params.append(reserved_until)
+        params.append(reservation_id)
+        cursor.execute(
+            f"UPDATE reservations SET {', '.join(updates)} WHERE id=?",
+            tuple(params)
+        )
+        conn.commit()
+        conn.close()
 
     @staticmethod
-    def get_reserved_qty(metadata_id):
-        """Get total reserved quantity for a given ingredient (metadata_id)."""
-        try:
-            conn = get_connection()
-            cur = conn.cursor()
-            cur.execute("""
-                SELECT SUM(qty) FROM reservations
-                WHERE metadata_id=? AND status='active'
-            """, (metadata_id,))
-            result = cur.fetchone()
-            conn.close()
-            return result[0] or 0
-        except Exception as e:
-            print(f"[ERROR] Failed to get reserved qty: {e}")
-            return 0
-    
-    @staticmethod
-    def get_reserved_qty_for_order(order_id, metadata_id):
-        """Get total reserved quantity for a given ingredient (metadata_id) for a specific order."""
-        try:
-            conn = get_connection()
-            cur = conn.cursor()
-            cur.execute("""
-                SELECT SUM(qty) FROM reservations
-                WHERE metadata_id=? AND order_id=? AND status='active'
-            """, (metadata_id, order_id))
-            result = cur.fetchone()
-            conn.close()
-            return result[0] or 0
-        except Exception as e:
-            print(f"[ERROR] Failed to get reserved qty for order: {e}")
-            return 0
+    def delete_reservation(reservation_id):
+        conn = get_connection()
+        cursor = conn.cursor()
+        cursor.execute(
+            "DELETE FROM reservations WHERE id=?",
+            (reservation_id,)
+        )
+        conn.commit()
+        conn.close()

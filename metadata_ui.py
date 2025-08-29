@@ -6,15 +6,15 @@ class MetadataPopup(QtWidgets.QWidget):
     def __init__(self):
         super().__init__()
         self.setWindowTitle("Metadata Tags Manager")
-        self.resize(600, 400)
+        self.resize(700, 400)
 
         # --- Data ---
         self.data = []
 
         # --- Table ---
         self.table = QtWidgets.QTableWidget()
-        self.table.setColumnCount(3)
-        self.table.setHorizontalHeaderLabels(["ID", "Name", "Description"])
+        self.table.setColumnCount(4)
+        self.table.setHorizontalHeaderLabels(["ID", "Name", "Description", "Unit"])
         self.table.horizontalHeader().setSectionResizeMode(QtWidgets.QHeaderView.Stretch)
 
         # --- Buttons ---
@@ -48,14 +48,18 @@ class MetadataPopup(QtWidgets.QWidget):
             self.table.setItem(row, 0, QtWidgets.QTableWidgetItem(str(m[0])))  # ID
             self.table.setItem(row, 1, QtWidgets.QTableWidgetItem(m[1]))       # Name
             self.table.setItem(row, 2, QtWidgets.QTableWidgetItem(m[2] or "")) # Description
+            self.table.setItem(row, 3, QtWidgets.QTableWidgetItem(m[3] or "")) # Unit
 
     def add_metadata(self):
         name, ok1 = QInputDialog.getText(self, "Add Metadata", "Tag name:")
         if not ok1 or not name.strip():
             return
         desc, ok2 = QInputDialog.getText(self, "Add Metadata", "Description (optional):")
-        if ok2:
-            MetadataDB.add_metadata(name.strip(), desc.strip() if desc else "")
+        if not ok2:
+            return
+        unit, ok3 = QInputDialog.getText(self, "Add Metadata", "Unit (e.g. g, ml, pcs):")
+        if ok3 and unit.strip():
+            MetadataDB.add_metadata(name.strip(), desc.strip() if desc else "", unit.strip())
             self.refresh_table()
 
     def edit_metadata(self):
@@ -65,13 +69,17 @@ class MetadataPopup(QtWidgets.QWidget):
         metadata_id = self.data[selected][0]
         current_name = self.data[selected][1]
         current_desc = self.data[selected][2] or ""
+        current_unit = self.data[selected][3] or ""
 
         name, ok1 = QInputDialog.getText(self, "Edit Metadata", "Tag name:", text=current_name)
         if not ok1 or not name.strip():
             return
         desc, ok2 = QInputDialog.getText(self, "Edit Metadata", "Description (optional):", text=current_desc)
-        if ok2:
-            MetadataDB.update_metadata(metadata_id, name.strip(), desc.strip() if desc else "")
+        if not ok2:
+            return
+        unit, ok3 = QInputDialog.getText(self, "Edit Metadata", "Unit (e.g. g, ml, pcs):", text=current_unit)
+        if ok3 and unit.strip():
+            MetadataDB.update_metadata(metadata_id, name.strip(), desc.strip() if desc else "", unit.strip())
             self.refresh_table()
 
     def delete_metadata(self):

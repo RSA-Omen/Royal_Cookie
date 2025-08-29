@@ -3,7 +3,7 @@ from PyQt5.QtWidgets import QMessageBox, QTableWidgetItem
 from ingredient_db import IngredientDB
 from purchases_db import PurchaseDB
 from datetime import datetime
-from Stock_db import IngredientStockDB
+from Stock_db import StockDB
 
 class IngredientHistoryPopup(QtWidgets.QWidget):
     def __init__(self):

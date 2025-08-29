@@ -5,6 +5,7 @@ class IngredientDB:
     def init_ingredient_db(conn):
         """
         Initialize the ingredients table linked to metadata.
+        Removes the unit column (unit is now in metadata).
         """
         cursor = conn.cursor()
         cursor.execute('''
@@ -12,7 +13,6 @@ class IngredientDB:
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 name TEXT NOT NULL,
                 size REAL NOT NULL,
-                unit TEXT NOT NULL,
                 metadata_id INTEGER NOT NULL,
                 FOREIGN KEY(metadata_id) REFERENCES metadata(id)
             )
@@ -20,12 +20,12 @@ class IngredientDB:
         conn.commit()
 
     @staticmethod
-    def add_ingredient(name, size, unit, metadata_id):
+    def add_ingredient(name, size, metadata_id):
         conn = get_connection()
         cursor = conn.cursor()
         cursor.execute(
-            'INSERT INTO ingredients (name, size, unit, metadata_id) VALUES (?, ?, ?, ?)',
-            (name, size, unit, metadata_id)
+            'INSERT INTO ingredients (name, size, metadata_id) VALUES (?, ?, ?)',
+            (name, size, metadata_id)
         )
         conn.commit()
         conn.close()
@@ -34,7 +34,7 @@ class IngredientDB:
     def get_ingredients():
         conn = get_connection()
         cursor = conn.cursor()
-        cursor.execute("SELECT id, name, size, unit, metadata_id FROM ingredients")
+        cursor.execute("SELECT id, name, size, metadata_id FROM ingredients")
         rows = cursor.fetchall()
         conn.close()
 
@@ -44,23 +44,33 @@ class IngredientDB:
                 "ID": r[0],
                 "Name": r[1],
                 "Size": r[2],
-                "Unit": r[3],
-                "MetadataID": r[4],
+                "MetadataID": r[3],
             })
         return ingredients
 
-    # alias for compatibility with UI
     @staticmethod
-    def get_all_ingredients():
-        return IngredientDB.get_ingredients()
+    def get_ingredient_by_id(ingredient_id):
+        conn = get_connection()
+        cursor = conn.cursor()
+        cursor.execute("SELECT id, name, size, metadata_id FROM ingredients WHERE id=?", (ingredient_id,))
+        row = cursor.fetchone()
+        conn.close()
+        if row:
+            return {
+                "ID": row[0],
+                "Name": row[1],
+                "Size": row[2],
+                "MetadataID": row[3],
+            }
+        return None
 
     @staticmethod
-    def update_ingredient(ingredient_id, name, size, unit, metadata_id):
+    def update_ingredient(ingredient_id, name, size, metadata_id):
         conn = get_connection()
         cur = conn.cursor()
         cur.execute(
-            'UPDATE ingredients SET name=?, size=?, unit=?, metadata_id=? WHERE id=?',
-            (name, size, unit, metadata_id, ingredient_id)
+            'UPDATE ingredients SET name=?, size=?, metadata_id=? WHERE id=?',
+            (name, size, metadata_id, ingredient_id)
         )
         conn.commit()
         conn.close()

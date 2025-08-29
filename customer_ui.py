@@ -4,7 +4,7 @@ from customer_db import CustomerDB
 from order_db import OrderDB
 from line_item_db import LineItemDB
 from metadata_db import MetadataDB
-from Stock_db import IngredientStockDB
+from Stock_db import StockDB
 from recipe_db import RecipeDB
 
 

@@ -1,7 +1,7 @@
 from PyQt5 import QtWidgets
 from PyQt5.QtWidgets import QInputDialog, QMessageBox
 from ingredient_db import IngredientDB
-from Stock_db import IngredientStockDB
+from Stock_db import StockDB
 from datetime import datetime
 
 class IngredientStockPopup(QtWidgets.QWidget):

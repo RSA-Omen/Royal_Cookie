@@ -2,7 +2,7 @@ from order_db import OrderDB
 from PyQt5 import QtWidgets,QtGui
 from line_item_db import LineItemDB
 from recipe_db import RecipeDB
-from Stock_db import IngredientStockDB
+from Stock_db import StockDB
 from reservation_db import ReservationDB
 
 
@@ -153,60 +153,7 @@ class ProductionController:
             table.setItem(row_idx, 2, QtWidgets.QTableWidgetItem(str(item[3])))  # Quantity
         # No row coloring for line items as per user request
                
-    def load_ingredients(self, order_id):
-        table = self.ui.ingredients_table
-        table.setRowCount(0)
-        items = LineItemDB.get_order_items(order_id)
-        ingredient_totals = {}  # key: (metadata_id, ing_name, unit), value: total required
 
-        for item in items:
-            lineitem_id, order_id, recipe_name, quantity = item
-            recipe_id = LineItemDB.get_recipe_id(lineitem_id)
-            if not recipe_id:
-                continue
-            ingredients = RecipeDB.get_recipe_ingredients(recipe_id)
-            for ing in ingredients:
-                metadata_id = ing[2]
-                ing_name = ing[5]
-                per_recipe_amt = ing[3]
-                unit = ing[4]
-                required = per_recipe_amt * quantity
-
-                key = (metadata_id, ing_name, unit)
-                if key not in ingredient_totals:
-                    ingredient_totals[key] = 0
-                ingredient_totals[key] += required
-
-        stock_db = IngredientStockDB()
-
-        for row_idx, ((metadata_id, ing_name, unit), total_required) in enumerate(ingredient_totals.items()):
-            reserved = ReservationDB.get_reserved_qty_for_order(order_id, metadata_id)
-            available_physical = stock_db.get_available_stock(metadata_id)
-            reserved_global = ReservationDB.get_reserved_qty(metadata_id)
-            available = max(0, (available_physical or 0) - (reserved_global or 0))
-            shortage = max(0, total_required - (available - reserved))
-
-            table.insertRow(row_idx)
-            table.setItem(row_idx, 0, QtWidgets.QTableWidgetItem(str(ing_name)))
-            table.setItem(row_idx, 1, QtWidgets.QTableWidgetItem(f"{total_required} {unit}"))
-            table.setItem(row_idx, 2, QtWidgets.QTableWidgetItem(f"{reserved} {unit}"))
-            table.setItem(row_idx, 3, QtWidgets.QTableWidgetItem(f"{available} {unit}"))
-            table.setItem(row_idx, 4, QtWidgets.QTableWidgetItem(f"{shortage} {unit}"))
-            table.setItem(row_idx, 5, QtWidgets.QTableWidgetItem(""))
-
-            # Updated coloring logic for partial reservations
-            if reserved >= total_required:
-                color = QtGui.QColor(144, 238, 144)  # green: fully reserved
-            elif reserved > 0:
-                color = QtGui.QColor(255, 255, 102)   # yellow: partially reserved
-            else:
-                color = QtGui.QColor(255, 99, 71)    # red: not reserved
-
-            for col in range(table.columnCount()):
-                cell_item = table.item(row_idx, col)
-                if cell_item is not None:
-                    cell_item.setBackground(color)
-        
     def change_order_status(self):
         selected = self.ui.orders_table.currentRow()
         if selected < 0:
@@ -317,3 +264,74 @@ class ProductionController:
                 ReservationDB.release_reservation(reservation_id)
             QtWidgets.QMessageBox.information(self.ui, "Released", "All reservations for this order have been released.")
             self.load_ingredients(order_id)
+
+
+
+
+    def load_ingredients(self, order_id):
+        """
+        Populate the Required Ingredients table for the selected order,
+        showing the total required, reserved, available, and shortage for each ingredient.
+        Reserved and Batch/Expiry are left blank for now.
+        """
+        table = self.ui.ingredients_table
+        table.setRowCount(0)
+        items = LineItemDB.get_order_items(order_id)
+        ingredient_totals = {}  # key: (ingredient_id, ing_name, unit), value: total required
+
+        from ingredient_db import IngredientDB
+
+        for item in items:
+            lineitem_id, order_id, recipe_name, quantity = item
+            recipe_id = LineItemDB.get_recipe_id(lineitem_id)
+            if not recipe_id:
+                continue
+            ingredients = RecipeDB.get_recipe_ingredients(recipe_id)
+            for ing in ingredients:
+                # ing: (ri_id, r_id, metadata_id, per_recipe_amt, unit, ing_name, ingredient_id)
+                # Make sure your get_recipe_ingredients returns ingredient_id as the last element!
+                if len(ing) >= 7:
+                    ingredient_id = ing[6]
+                else:
+                    ingredient_id = ing[2]  # fallback, but not ideal
+                ing_name = ing[5]
+                per_recipe_amt = ing[3]
+                # Fetch the correct unit from ingredient table
+                ingredient = IngredientDB.get_ingredient_by_id(ingredient_id)
+                unit = ingredient["Unit"] if ingredient and "Unit" in ingredient else ing[4]
+                required = per_recipe_amt * quantity
+
+                key = (ingredient_id, ing_name, unit)
+                if key not in ingredient_totals:
+                    ingredient_totals[key] = 0
+                ingredient_totals[key] += required
+
+        stock_db = IngredientStockDB()
+
+        for row_idx, ((ingredient_id, ing_name, unit), total_required) in enumerate(ingredient_totals.items()):
+            reserved = ReservationDB.get_reserved_qty_for_order(order_id, ingredient_id)
+            available_physical = stock_db.get_available_stock(ingredient_id)
+            reserved_global = ReservationDB.get_reserved_qty(ingredient_id)
+            available = max(0, (available_physical or 0) - (reserved_global or 0))
+            shortage = max(0, total_required - (available - reserved))
+
+            table.insertRow(row_idx)
+            table.setItem(row_idx, 0, QtWidgets.QTableWidgetItem(str(ing_name)))
+            table.setItem(row_idx, 1, QtWidgets.QTableWidgetItem(f"{total_required} {unit}"))
+            table.setItem(row_idx, 2, QtWidgets.QTableWidgetItem(f"{reserved} {unit}"))
+            table.setItem(row_idx, 3, QtWidgets.QTableWidgetItem(f"{available} {unit}"))
+            table.setItem(row_idx, 4, QtWidgets.QTableWidgetItem(f"{shortage} {unit}"))
+            table.setItem(row_idx, 5, QtWidgets.QTableWidgetItem(""))
+
+            # Coloring logic
+            if reserved >= total_required:
+                color = QtGui.QColor(144, 238, 144)  # green: fully reserved
+            elif reserved > 0 and shortage == 0:
+                color = QtGui.QColor(255, 255, 102)  # yellow: partially reserved, but enough available
+            else:
+                color = QtGui.QColor(255, 99, 71)    # red: not enough reserved and not enough available
+
+            for col in range(table.columnCount()):
+                cell_item = table.item(row_idx, col)
+                if cell_item is not None:
+                    cell_item.setBackground(color)
