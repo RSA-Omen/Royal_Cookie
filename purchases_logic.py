@@ -11,9 +11,22 @@ class PurchasesLogic:
         # Update stock
         current_stock = StockDB.get_stock(ingredient_id)
         if current_stock:
-            stock_id, _, existing_qty, _ = current_stock[0]
+            row = current_stock[0]
+            stock_id = row[0]         # id
+            existing_qty = row[3]     # quantity
             StockDB.update_stock(stock_id, existing_qty + quantity)
         else:
             StockDB.add_stock(ingredient_id, quantity)
 
-    # You can add update_purchase and delete_purchase here as
+    @staticmethod
+    def get_purchases(ingredient_id=None):
+        return PurchaseDB.get_purchases(ingredient_id)
+
+
+    @staticmethod
+    def update_purchase(purchase_id, quantity, price, discount):
+        PurchaseDB.update_purchase(purchase_id, quantity, price, discount)
+
+    @staticmethod
+    def delete_purchase(purchase_id):
+        PurchaseDB.delete_purchase(purchase_id)
