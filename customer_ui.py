@@ -36,7 +36,7 @@ class StockCheckPanel(QtWidgets.QWidget):
             self.breakdown_tree.clear()
             return
 
-        stock_db = IngredientStockDB()
+        stock_db = StockDB()
         ingredient_totals = {}
         self.breakdown_tree.clear()
 
