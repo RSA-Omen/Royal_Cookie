@@ -3,7 +3,7 @@ from PyQt5 import QtWidgets
 
 from init_all import init_db
 from ingredient_ui import IngredientsPopup
-from purchases_ui import IngredientHistoryPopup
+from purchases_ui import PurchasePopup
 from Stock_ui import IngredientStockPopup
 from recipes_ui import RecipesPopup
 from metadata_ui import MetadataPopup
@@ -51,7 +51,7 @@ class MainApp(QtWidgets.QMainWindow):
         self.ingredients_window.show()
 
     def open_history(self):
-        self.history_window = IngredientHistoryPopup()
+        self.history_window = PurchasePopup()
         self.history_window.show()
 
     def open_stock(self):

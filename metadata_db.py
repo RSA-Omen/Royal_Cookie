@@ -48,3 +48,11 @@ class MetadataDB:
         )
         conn.commit()
         conn.close()    
+
+    @staticmethod
+    def delete_metadata(metadata_id):
+        conn = get_connection()
+        cur = conn.cursor()
+        cur.execute("DELETE FROM metadata WHERE id=?", (metadata_id,))
+        conn.commit()
+        conn.close()
