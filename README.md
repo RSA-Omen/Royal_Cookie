@@ -1,65 +1,65 @@
-# Royal_Cookie
-======================
-DBs (Database interaction)
-======================
 
-CustomerDB
-- Handles all database operations related to customers: add, update, delete, fetch.
+# The Royal Cookie - Order & Production Management System
 
-IngredientsDB
-- Manages ingredient definitions: names, units, possibly categories.
+## Overview
+The Royal Cookie is a Python-based application for managing bakery production, ingredient inventory, order fulfillment, and purchasing. It features a PyQt5 desktop UI and uses SQLite for persistent data storage. The system is designed for bakeries or small food producers who need to track orders, manage stock, reserve ingredients, and generate shopping lists for purchasing.
 
-Purchases(formerly Ingredients_historyDB)
-- Keeps a historical record of ingredient changes or usage.
+## Features
+- **Order Management:** Create, view, and manage customer orders with delivery dates, status, and notes.
+- **Line Items & Recipes:** Track order line items, each linked to recipes and required ingredients.
+- **Ingredient Inventory:** Manage stock batches, expiry dates, and available/reserved quantities for each ingredient.
+- **Reservation System:** Reserve ingredients for orders, per line item and per batch, with real-time status updates.
+- **Shopping List:** Automatically generate a list of ingredients that need to be purchased, based on shortages across all orders.
+- **Production Notes:** Add and view notes for production planning.
+- **UI Tabs:** Intuitive tabbed interface for Orders, Reservations, Inventory, and Shopping List.
 
-Ingredients_stockDB
-- Tracks current stock levels of ingredients; handles adjustments.
+## Getting Started
 
-Line_ItemDB
-- Manages the items within orders, linking recipes to quantities and orders.
+### Prerequisites
+- Python 3.7+
+- [PyQt5](https://pypi.org/project/PyQt5/)
+- SQLite (included with Python standard library)
 
-MetadataDB
-- Stores auxiliary or configuration data used by the app (e.g., units, statuses).
+### Installation
+1. Clone the repository:
+	```
+	git clone https://github.com/RSA-Omen/Royal_Cookie.git
+	cd Royal_Cookie
+	```
+2. Install dependencies:
+	```
+	pip install PyQt5
+	```
+3. (Optional) Initialize the database if running for the first time:
+	- Run `init_all.py` to create all necessary tables.
 
-OrderDB
-- Handles orders for customers: create, update, delete, list.
+### Running the Application
+Launch the main UI:
+```
+python production_ui.py
+```
 
-RecipeDB
-- Manages recipes: ingredients required, quantities, possibly instructions.
+## Project Structure
+- `production_ui.py` — Main PyQt5 UI for order and production management
+- `production_logic.py` — Core business logic and UI event handling
+- `order_db.py`, `line_item_db.py`, `ingredient_db.py`, `Stock_db.py`, `reservation_db.py` — Database access modules
+- `metadata_db.py`, `recipe_db.py`, `recipe_logic.py` — Metadata and recipe management
+- `fix_stock_quantities.py` — Utility for correcting stock quantities
+- `ingredients.db`, `royal_cookie.db` — SQLite database files
+- `supporting Files/` — Diagrams and documentation
 
+## Usage Tips
+- Use the "Reserve Ingredients" button to allocate stock for orders.
+- The Shopping List tab shows all ingredients that need to be purchased to fulfill current orders.
+- Release reservations to return ingredients to stock if an order is canceled or changed.
+- Use the Inventory tab to monitor stock levels and expiry dates.
 
-======================
-UIs (User interface for interacting with DBs)
-======================
+## Contributing
+Pull requests and suggestions are welcome! Please open an issue for major changes.
 
-CustomerUI
-- Interface to view, add, edit, and delete customers; select customers to view orders.
+## License
+MIT License
 
-IngredientUI
-- Interface for managing ingredients themselves (add, edit, delete ingredient definitions).
-
-Ingredient_stockUI
-- Interface for viewing and adjusting ingredient stock levels.
-
-Purchases(formerly Ingredient_historyUI)
-- Interface for viewing historical ingredient usage or adjustments.
-
-MetadataUI
-- Interface for managing metadata or auxiliary settings used across the app.
-
-orderDialogUI
-- Interface for creating or editing orders (selecting recipes, quantities, etc.).
-
-RecipeUI
-- Interface for managing recipes: add, edit, delete, view ingredients per recipe.
-
-
-======================
-Utility / Initialization
-======================
-
-init_add.py
-- Contains routines to initialize or populate the database with default values.
-
-app.py
-- Main entry point of the application; launches the UI and connects all modules.
+## Authors
+- RSA-Omen (project owner)
+- GitHub Copilot (AI assistant)
