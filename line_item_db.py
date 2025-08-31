@@ -3,6 +3,49 @@ from db import get_connection
 class LineItemDB:
 
     @staticmethod
+    def get_required_ingredients_for_order(order_id):
+        """
+        Aggregate required quantity for each ingredient (metadata_id) for the given order.
+        Returns a dict: {metadata_id: required_qty}
+        """
+        from recipe_db import RecipeDB
+        required = {}
+        items = LineItemDB.get_order_items(order_id)
+        for item in items:
+            lineitem_id = item[0]
+            quantity = item[3]
+            recipe_id = LineItemDB.get_recipe_id(lineitem_id)
+            if not recipe_id:
+                continue
+            ingredients = RecipeDB.get_recipe_ingredients(recipe_id)
+            for ing in ingredients:
+                metadata_id = ing[2]
+                per_recipe_amt = ing[3]
+                total_needed = per_recipe_amt * quantity
+                if metadata_id not in required:
+                    required[metadata_id] = 0
+                required[metadata_id] += total_needed
+        return required
+
+    @staticmethod
+    def get_reservation_status_for_order(order_id):
+        """
+        For each required ingredient in the order, return required, reserved, and ready status.
+        Returns a dict: {metadata_id: {"required": x, "reserved": y, "ready": bool}}
+        """
+        from reservation_db import ReservationDB
+        required = LineItemDB.get_required_ingredients_for_order(order_id)
+        status = {}
+        for metadata_id, req_qty in required.items():
+            reserved_qty = ReservationDB.get_reserved_qty_for_order(order_id, metadata_id)
+            status[metadata_id] = {
+                "required": req_qty,
+                "reserved": reserved_qty,
+                "ready": reserved_qty >= req_qty
+            }
+        return status
+
+    @staticmethod
 
     def init_line_items_table(connection):
         try:
@@ -117,3 +160,4 @@ class LineItemDB:
         except Exception as e:
             print(f"[ERROR] Failed to fetch recipes: {e}")
             return []
+    
