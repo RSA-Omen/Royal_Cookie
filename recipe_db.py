@@ -43,7 +43,7 @@ class RecipeDB:
     def get_all_recipes():
         conn = get_connection()
         cur = conn.cursor()
-        cur.execute("SELECT * FROM recipes")
+        cur.execute("SELECT id, name, output_quantity FROM recipes")
         rows = cur.fetchall()
         conn.close()
         return rows

@@ -1,8 +1,8 @@
 from PyQt5 import QtWidgets
 from PyQt5.QtWidgets import QInputDialog, QMessageBox
 from ingredient_db import IngredientDB
-from Stock_db import IngredientStockDB
-from datetime import datetime
+from stock_logic import StockLogic
+from metadata_db import MetadataDB
 
 class IngredientStockPopup(QtWidgets.QWidget):
     def __init__(self):
@@ -59,12 +59,15 @@ class IngredientStockPopup(QtWidgets.QWidget):
         self.refresh_table()
 
     def load_ingredients(self):
+
         self.ingredient_input.blockSignals(True)
         self.ingredient_input.clear()
         self.ingredients_list = IngredientDB.get_ingredients()
+        metadata_lookup = {m[0]: m[3] for m in MetadataDB.get_all_metadata()}  # id: unit
         self.ingredient_input.addItem("Other...", -1)
         for ing in self.ingredients_list:
-            self.ingredient_input.addItem(f"{ing['Name']} ({ing['Size']} {ing['Unit']})", ing["ID"])
+            unit = metadata_lookup.get(ing["MetadataID"], "")
+            self.ingredient_input.addItem(f"{ing['Name']} ({ing['Size']} {unit})", ing["ID"])
         self.ingredient_input.setCurrentIndex(0)
         self.ingredient_input.blockSignals(False)
 
@@ -96,20 +99,27 @@ class IngredientStockPopup(QtWidgets.QWidget):
             self.loading = False
             return
 
-        self.refresh_table(ingredient_id=ing_id)
+        # If 'Other...' is selected, show all stock
+        if ing_id == -1 or ing_id is None:
+            self.refresh_table(ingredient_id=None)
+        else:
+            self.refresh_table(ingredient_id=ing_id)
 
     def refresh_table(self, ingredient_id=None):
         try:
-            self.data = IngredientStockDB.get_stock(ingredient_id)
+            self.data = StockLogic.get_stock(ingredient_id)
             self.table.setRowCount(0)
             for s in self.data:
                 row = self.table.rowCount()
                 self.table.insertRow(row)
-                ing = next((i for i in self.ingredients_list if i["ID"] == s[1]), {"Name": "Unknown"})
+                # s[1] is ingredient_id
+                ing = next((i for i in self.ingredients_list if i["ID"] == s[1]), None)
+                ing_name = ing["Name"] if ing else f"ID {s[1]}"
                 self.table.setItem(row, 0, QtWidgets.QTableWidgetItem(str(s[0])))
-                self.table.setItem(row, 1, QtWidgets.QTableWidgetItem(ing["Name"]))
-                self.table.setItem(row, 2, QtWidgets.QTableWidgetItem(str(s[2])))
-                self.table.setItem(row, 3, QtWidgets.QTableWidgetItem(str(s[3])))
+                self.table.setItem(row, 1, QtWidgets.QTableWidgetItem(ing_name))
+                self.table.setItem(row, 2, QtWidgets.QTableWidgetItem(str(s[3])))
+                # s[4] is last_updated if present, else fallback to s[3]
+                self.table.setItem(row, 3, QtWidgets.QTableWidgetItem(str(s[4]) if len(s) > 4 else str(s[3])))
         except Exception as e:
             print("Error refreshing stock table:", e)
 
@@ -120,33 +130,36 @@ class IngredientStockPopup(QtWidgets.QWidget):
             return
         try:
             quantity = float(self.quantity_input.text().strip())
-        except ValueError:
-            QMessageBox.warning(self, "Error", "Quantity must be a number")
-            return
-        IngredientStockDB.add_stock(ingredient_id, quantity)
-        self.refresh_table(ingredient_id)
-        self.clear_form()
+            StockLogic.add_stock(ingredient_id, quantity)
+            self.refresh_table(ingredient_id)
+            self.clear_form()
+        except Exception as e:
+            QMessageBox.warning(self, "Error", str(e))
 
     def update_stock(self):
         selected = self.table.currentRow()
-        if selected < 0: return
+        if selected < 0:
+            return
         stock_id = self.data[selected][0]
         try:
             quantity = float(self.quantity_input.text().strip())
-        except ValueError:
-            QMessageBox.warning(self, "Error", "Quantity must be a number")
-            return
-        IngredientStockDB.update_stock(stock_id, quantity)
-        self.refresh_table(self.ingredient_input.currentData())
-        self.clear_form()
+            StockLogic.update_stock(stock_id, quantity)
+            self.refresh_table(self.ingredient_input.currentData())
+            self.clear_form()
+        except Exception as e:
+            QMessageBox.warning(self, "Error", str(e))
 
     def delete_stock(self):
         selected = self.table.currentRow()
-        if selected < 0: return
+        if selected < 0:
+            return
         stock_id = self.data[selected][0]
-        IngredientStockDB.delete_stock(stock_id)
-        self.refresh_table(self.ingredient_input.currentData())
-        self.clear_form()
+        try:
+            StockLogic.delete_stock(stock_id)
+            self.refresh_table(self.ingredient_input.currentData())
+            self.clear_form()
+        except Exception as e:
+            QMessageBox.warning(self, "Error", str(e))
 
     def fill_form(self, row, column):
         s = self.data[row]

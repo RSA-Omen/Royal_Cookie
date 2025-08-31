@@ -3,12 +3,13 @@ from PyQt5 import QtWidgets
 
 from init_all import init_db
 from ingredient_ui import IngredientsPopup
-from purchases_ui import IngredientHistoryPopup
+from purchases_ui import PurchasePopup
 from Stock_ui import IngredientStockPopup
 from recipes_ui import RecipesPopup
 from metadata_ui import MetadataPopup
 from customer_ui import CustomerOrdersPopup
 from order_ui import OrdersPopup
+from production_ui import ProductionUI
 
 class MainApp(QtWidgets.QMainWindow):
     def __init__(self):
@@ -22,6 +23,8 @@ class MainApp(QtWidgets.QMainWindow):
         layout = QtWidgets.QVBoxLayout()
         central.setLayout(layout)
         layout.addWidget(QtWidgets.QLabel("Select an option from the menu above"))
+
+
 
         # --- Menu Bar ---
         menubar = self.menuBar()
@@ -40,7 +43,7 @@ class MainApp(QtWidgets.QMainWindow):
         # Customers / Orders menu
         customers_menu = menubar.addMenu("Customers & Orders")
         customers_menu.addAction("Manage Customers", self.open_customers)
-        customers_menu.addAction("Manage Orders", self.open_orders)
+        customers_menu.addAction("Production Dashboard", self.open_dashboard)
 
     # --- Open windows ---
     def open_ingredients(self):
@@ -48,7 +51,7 @@ class MainApp(QtWidgets.QMainWindow):
         self.ingredients_window.show()
 
     def open_history(self):
-        self.history_window = IngredientHistoryPopup()
+        self.history_window = PurchasePopup()
         self.history_window.show()
 
     def open_stock(self):
@@ -67,9 +70,9 @@ class MainApp(QtWidgets.QMainWindow):
         self.customers_window = CustomerOrdersPopup()
         self.customers_window.show()
 
-    def open_orders(self):
-        self.orders_window = OrdersPopup()
-        self.orders_window.show()
+    def open_dashboard(self):
+        self.production_window = ProductionUI()
+        self.production_window.show()
 
 
 if __name__ == "__main__":

@@ -2,10 +2,10 @@ from db import get_connection
 
 class PurchaseDB:
     @staticmethod
-    def init_ingredient_history_db(conn):
+    def init_ingredient_purchases_db(conn):
         cursor = conn.cursor()
         cursor.execute('''
-            CREATE TABLE IF NOT EXISTS ingredient_history (
+            CREATE TABLE IF NOT EXISTS ingredient_purchases (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 ingredient_id INTEGER NOT NULL,
                 date TEXT NOT NULL,
@@ -20,43 +20,43 @@ class PurchaseDB:
         conn.commit()
 
     @staticmethod
-    def get_history(ingredient_id=None):
+    def get_purchases(ingredient_id=None):
         conn = get_connection()
         cur = conn.cursor()
         if ingredient_id:
-            cur.execute("SELECT * FROM ingredient_history WHERE ingredient_id = ?", (ingredient_id,))
+            cur.execute("SELECT * FROM ingredient_purchases WHERE ingredient_id = ?", (ingredient_id,))
         else:
-            cur.execute("SELECT * FROM ingredient_history")
+            cur.execute("SELECT * FROM ingredient_purchases")
         rows = cur.fetchall()
         conn.close()
         return rows
 
     @staticmethod
-    def add_history(ingredient_id, date, quantity, price, discount):
+    def add_purchase(ingredient_id, date, quantity, price, discount):
         conn = get_connection()
         cur = conn.cursor()
         cur.execute(
-            "INSERT INTO ingredient_history (ingredient_id, date, quantity, price, discount) VALUES (?, ?, ?, ?, ?)",
+            "INSERT INTO ingredient_purchases (ingredient_id, date, quantity, price, discount) VALUES (?, ?, ?, ?, ?)",
             (ingredient_id, date, quantity, price, discount)
         )
         conn.commit()
         conn.close()
 
     @staticmethod
-    def update_history(history_id, quantity, price, discount):
+    def update_purchase(purchase_id, quantity, price, discount):
         conn = get_connection()
         cur = conn.cursor()
         cur.execute(
-            "UPDATE ingredient_history SET quantity=?, price=?, discount=? WHERE id=?",
-            (quantity, price, discount, history_id)
+            "UPDATE ingredient_purchases SET quantity=?, price=?, discount=? WHERE id=?",
+            (quantity, price, discount, purchase_id)
         )
         conn.commit()
         conn.close()
 
     @staticmethod
-    def delete_history(history_id):
+    def delete_purchase(purchase_id):
         conn = get_connection()
         cur = conn.cursor()
-        cur.execute("DELETE FROM ingredient_history WHERE id=?", (history_id,))
+        cur.execute("DELETE FROM ingredient_purchases WHERE id=?", (purchase_id,))
         conn.commit()
         conn.close()

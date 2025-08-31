@@ -22,13 +22,13 @@ INVENTORY & STOCK (Mid Term)
 - [x] Build Ingredients/Stock Table
       * New DB table: inventory (ingredient, qty, unit)
       * Add UI tab for viewing/editing inventory
-- [ ] Connect Recipes → Ingredients
+- [X] Connect Recipes → Ingredients
       * Recipes must store ingredient breakdown in DB
       * On placing order, calculate required ingredients
-- [ ] Stock Check / C3R2 Panel
+- [X] Stock Check / C3R2 Panel
       * Panel: Required ingredients vs Available stock
       * Highlight shortages (red for missing stock)
-- [ ] CRUD for purchases
+- [X] CRUD for purchases
 
 
 BUSINESS LOGIC (Mid-Long Term)
@@ -77,3 +77,12 @@ Release 4: Mobile Version
 Supplier management
 transaction logs
 reporting dashboard
+
+Order of Implementation for This Phase
+Design and create the reservations table (with links to orders, line items, ingredient batches, and expiry).
+Update stock logic to support reservations and prevent negative stock.
+Update purchasing and stock-in logic to record date of purchase and expiry for each batch.
+Implement reservation and release logic (including expiry).
+Update order status tracking in the database and UI, with validation for allowed statuses.
+Update UI to show reservation status, available/reserved stock, and allow reservation/release actions.
+Test the full workflow: purchase, reserve, release, and status changes.
