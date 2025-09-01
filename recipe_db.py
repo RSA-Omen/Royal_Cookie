@@ -5,7 +5,7 @@ class RecipeDB:
     @staticmethod
     def calculate_cost_per_batch(recipe_id):
         """
-        Calculates the total cost per batch for a recipe using the latest price per unit for each ingredient.
+        Calculates the total cost per batch for a recipe using the latest purchase price and ingredient size for each ingredient.
         Returns the total cost (float).
         """
         from purchases_db import PurchaseDB
@@ -18,12 +18,22 @@ class RecipeDB:
             quantity_needed = ing[3]
             # Find all ingredient_ids for this metadata_id
             ingredient_ids = [i["ID"] for i in IngredientDB.get_ingredients() if i["MetadataID"] == metadata_id]
-            # Use the latest price per unit among all ingredient_ids (if multiple, take the lowest non-None)
-            prices = [PurchaseDB.get_latest_price_per_unit(iid) for iid in ingredient_ids]
-            prices = [p for p in prices if p is not None]
-            if prices:
-                price_per_unit = min(prices)
-                total_cost += price_per_unit * quantity_needed
+            unit_cost = 0
+            for iid in ingredient_ids:
+                from db import get_connection
+                conn = get_connection()
+                cur = conn.cursor()
+                cur.execute("SELECT price FROM ingredient_purchases WHERE ingredient_id = ? AND price IS NOT NULL ORDER BY date DESC, id DESC LIMIT 1", (iid,))
+                row = cur.fetchone()
+                conn.close()
+                if row:
+                    price = row[0]
+                    ing_obj = IngredientDB.get_ingredient_by_id(iid)
+                    size = ing_obj["Size"] if ing_obj and "Size" in ing_obj else None
+                    if size and size > 0:
+                        unit_cost = price / size
+                        break
+            total_cost += unit_cost * quantity_needed
         return total_cost
 
     @staticmethod
@@ -48,14 +58,21 @@ class RecipeDB:
     @staticmethod
     def init_recipe_db(conn):
         cur = conn.cursor()
-        # Recipes table
+        # Recipes table with standard_price_per_unit
         cur.execute("""
             CREATE TABLE IF NOT EXISTS recipes (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 name TEXT NOT NULL,
-                output_quantity INTEGER NOT NULL
+                output_quantity INTEGER NOT NULL,
+                standard_price_per_unit REAL DEFAULT 10.0
             )
         """)
+
+        # Add column if missing (for migrations)
+        cur.execute("PRAGMA table_info(recipes)")
+        columns = [row[1] for row in cur.fetchall()]
+        if "standard_price_per_unit" not in columns:
+            cur.execute("ALTER TABLE recipes ADD COLUMN standard_price_per_unit REAL DEFAULT 10.0")
 
         # Recipe ingredients table (metadata reference)
         cur.execute("""
@@ -71,13 +88,17 @@ class RecipeDB:
         """)
         conn.commit()
 
+        # Update all existing recipes to R10 if not set
+        cur.execute("UPDATE recipes SET standard_price_per_unit = 10.0 WHERE standard_price_per_unit IS NULL")
+        conn.commit()
+
     # ------------------ Recipe Methods ------------------
     @staticmethod
-    def add_recipe(name, output_quantity):
+    def add_recipe(name, output_quantity, standard_price_per_unit=10.0):
         conn = get_connection()
         cur = conn.cursor()
-        cur.execute("INSERT INTO recipes (name, output_quantity) VALUES (?, ?)",
-                    (name, output_quantity))
+        cur.execute("INSERT INTO recipes (name, output_quantity, standard_price_per_unit) VALUES (?, ?, ?)",
+                    (name, output_quantity, standard_price_per_unit))
         conn.commit()
         rid = cur.lastrowid
         conn.close()
@@ -87,17 +108,17 @@ class RecipeDB:
     def get_all_recipes():
         conn = get_connection()
         cur = conn.cursor()
-        cur.execute("SELECT id, name, output_quantity FROM recipes")
+        cur.execute("SELECT id, name, output_quantity, standard_price_per_unit FROM recipes")
         rows = cur.fetchall()
         conn.close()
         return rows
 
     @staticmethod
-    def update_recipe(recipe_id, name, output_quantity):
+    def update_recipe(recipe_id, name, output_quantity, standard_price_per_unit):
         conn = get_connection()
         cur = conn.cursor()
-        cur.execute("UPDATE recipes SET name=?, output_quantity=? WHERE id=?",
-                    (name, output_quantity, recipe_id))
+        cur.execute("UPDATE recipes SET name=?, output_quantity=?, standard_price_per_unit=? WHERE id=?",
+                    (name, output_quantity, standard_price_per_unit, recipe_id))
         conn.commit()
         conn.close()
 
