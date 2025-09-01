@@ -1,6 +1,25 @@
 from db import get_connection
 
 class PurchaseDB:
+
+    @staticmethod
+    def get_latest_price_per_unit(ingredient_id):
+        """
+        Returns the most recent price per unit (before discount) for the given ingredient_id.
+        """
+        conn = get_connection()
+        cur = conn.cursor()
+        cur.execute("""
+            SELECT price, quantity FROM ingredient_purchases
+            WHERE ingredient_id = ? AND price IS NOT NULL AND quantity > 0
+            ORDER BY date DESC, id DESC LIMIT 1
+        """, (ingredient_id,))
+        row = cur.fetchone()
+        conn.close()
+        if row:
+            price, quantity = row
+            return price / quantity if quantity else None
+        return None
     @staticmethod
     def init_ingredient_purchases_db(conn):
         cursor = conn.cursor()

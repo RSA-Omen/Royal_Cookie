@@ -1,6 +1,50 @@
 from db import get_connection
 
 class RecipeDB:
+
+    @staticmethod
+    def calculate_cost_per_batch(recipe_id):
+        """
+        Calculates the total cost per batch for a recipe using the latest price per unit for each ingredient.
+        Returns the total cost (float).
+        """
+        from purchases_db import PurchaseDB
+        from ingredient_db import IngredientDB
+        ingredients = RecipeDB.get_recipe_ingredients(recipe_id)
+        total_cost = 0.0
+        for ing in ingredients:
+            # ing: (ri.id, ri.recipe_id, ri.metadata_id, ri.quantity, ri.unit, m.name)
+            metadata_id = ing[2]
+            quantity_needed = ing[3]
+            # Find all ingredient_ids for this metadata_id
+            ingredient_ids = [i["ID"] for i in IngredientDB.get_ingredients() if i["MetadataID"] == metadata_id]
+            # Use the latest price per unit among all ingredient_ids (if multiple, take the lowest non-None)
+            prices = [PurchaseDB.get_latest_price_per_unit(iid) for iid in ingredient_ids]
+            prices = [p for p in prices if p is not None]
+            if prices:
+                price_per_unit = min(prices)
+                total_cost += price_per_unit * quantity_needed
+        return total_cost
+
+    @staticmethod
+    def store_cost_per_batch(recipe_id, batch_cost):
+        """
+        Stores the calculated batch cost in a new table recipe_costs (recipe_id, batch_cost, date).
+        """
+        conn = get_connection()
+        cur = conn.cursor()
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS recipe_costs (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                recipe_id INTEGER NOT NULL,
+                batch_cost REAL NOT NULL,
+                calculated_at TEXT DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (recipe_id) REFERENCES recipes(id)
+            )
+        """)
+        cur.execute("INSERT INTO recipe_costs (recipe_id, batch_cost) VALUES (?, ?)", (recipe_id, batch_cost))
+        conn.commit()
+        conn.close()
     @staticmethod
     def init_recipe_db(conn):
         cur = conn.cursor()
