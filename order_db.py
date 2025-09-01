@@ -1,6 +1,39 @@
 from db import get_connection
 
 class OrderDB:
+
+    @staticmethod
+    def recalculate_total_amount(order_id):
+        """
+        Recalculate and update the total_amount for an order based on its line items and recipe standard price per unit.
+        """
+        try:
+            from line_item_db import LineItemDB
+            from recipe_db import RecipeDB
+            items = LineItemDB.get_order_items(order_id)
+            total = 0.0
+            for item in items:
+                # item: (lineitem_id, order_id, recipe_name, quantity)
+                recipe_id = LineItemDB.get_recipe_id(item[0])
+                qty = item[3]
+                # Get standard price per unit and output_quantity for this recipe
+                recipe = None
+                for r in RecipeDB.get_all_recipes():
+                    if r[0] == recipe_id:
+                        recipe = r
+                        break
+                if recipe:
+                    price_per_unit = recipe[3] if recipe[3] is not None else 10.0
+                    output_quantity = recipe[2] if recipe[2] is not None else 1
+                    total += price_per_unit * qty * output_quantity
+            # Update the order's total_amount
+            conn = get_connection()
+            cur = conn.cursor()
+            cur.execute("UPDATE orders SET total_amount=? WHERE id=?", (total, order_id))
+            conn.commit()
+            conn.close()
+        except Exception as e:
+            print(f"[ERROR] Failed to recalculate total_amount for order {order_id}: {e}")
     @staticmethod
     def get_orders_by_customer(customer_id):
         """Return all orders for a specific customer, ordered by order_date descending."""

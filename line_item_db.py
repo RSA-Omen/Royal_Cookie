@@ -100,7 +100,7 @@ class LineItemDB:
 
     @staticmethod
     def add_order_item(order_id, recipe_id, quantity):
-        """Add a new line item to an order."""
+        """Add a new line item to an order and update order total."""
         try:
             conn = get_connection()
             cur = conn.cursor()
@@ -111,6 +111,12 @@ class LineItemDB:
             conn.commit()
             lineitem_id = cur.lastrowid
             conn.close()
+            # Update order total
+            try:
+                from order_db import OrderDB
+                OrderDB.recalculate_total_amount(order_id)
+            except Exception as e:
+                print(f"[ERROR] Failed to update order total after add: {e}")
             return lineitem_id
         except Exception as e:
             print(f"[ERROR] Failed to add order item: {e}")
@@ -118,7 +124,7 @@ class LineItemDB:
 
     @staticmethod
     def update_order_item(lineitem_id, new_qty):
-        """Update the quantity of a line item by its ID."""
+        """Update the quantity of a line item by its ID and update order total."""
         if new_qty <= 0:
             raise ValueError("Quantity must be greater than zero.")
         try:
@@ -129,7 +135,17 @@ class LineItemDB:
                 (new_qty, lineitem_id)
             )
             conn.commit()
+            # Update order total
+            cur.execute("SELECT order_id FROM line_items WHERE id=?", (lineitem_id,))
+            row = cur.fetchone()
             conn.close()
+            if row:
+                order_id = row[0]
+                try:
+                    from order_db import OrderDB
+                    OrderDB.recalculate_total_amount(order_id)
+                except Exception as e:
+                    print(f"[ERROR] Failed to update order total after update: {e}")
             return True
         except Exception as e:
             print(f"[ERROR] Failed to update line item: {e}")
@@ -137,13 +153,23 @@ class LineItemDB:
 
     @staticmethod
     def delete_order_item(lineitem_id):
-        """Delete a line item by its ID."""
+        """Delete a line item by its ID and update order total."""
         try:
             conn = get_connection()
             cur = conn.cursor()
+            # Get order_id before deleting
+            cur.execute("SELECT order_id FROM line_items WHERE id=?", (lineitem_id,))
+            row = cur.fetchone()
+            order_id = row[0] if row else None
             cur.execute("DELETE FROM line_items WHERE id=?", (lineitem_id,))
             conn.commit()
             conn.close()
+            if order_id:
+                try:
+                    from order_db import OrderDB
+                    OrderDB.recalculate_total_amount(order_id)
+                except Exception as e:
+                    print(f"[ERROR] Failed to update order total after delete: {e}")
         except Exception as e:
             print(f"[ERROR] Failed to delete order item: {e}")
 

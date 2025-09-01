@@ -6,6 +6,8 @@ from ingredient_ui import IngredientsPopup
 from purchases_ui import PurchasePopup
 from Stock_ui import IngredientStockPopup
 from recipes_ui import RecipesPopup
+from recipe_profitability_ui import RecipeProfitabilityUI
+from financial_dashboard_ui import FinancialDashboardUI
 from metadata_ui import MetadataPopup
 from customer_ui import CustomerOrdersPopup
 from order_ui import OrdersPopup
@@ -39,11 +41,23 @@ class MainApp(QtWidgets.QMainWindow):
         recipes_menu = menubar.addMenu("Recipes")
         recipes_menu.addAction("Manage Recipes", self.open_recipes)
         recipes_menu.addAction("Manage Metadata", self.open_metadata)
+        recipes_menu.addAction("Recipe Profitability", self.open_recipe_profitability)
 
         # Customers / Orders menu
         customers_menu = menubar.addMenu("Customers & Orders")
         customers_menu.addAction("Manage Customers", self.open_customers)
         customers_menu.addAction("Production Dashboard", self.open_dashboard)
+
+    # Financial menu
+        financial_menu = menubar.addMenu("Financials")
+        financial_menu.addAction("Financial Dashboard", self.open_financial_dashboard)
+    def open_financial_dashboard(self):
+        self.financial_dashboard_window = FinancialDashboardUI()
+        self.financial_dashboard_window.show()
+
+    def open_recipe_profitability(self):
+        self.recipe_profitability_window = RecipeProfitabilityUI()
+        self.recipe_profitability_window.show()
 
     # --- Open windows ---
     def open_ingredients(self):
